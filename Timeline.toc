@@ -1,8 +1,10 @@
 ## Interface: 60100
 
 ## Title: Timeline
-## Notes: Creates a timeline.
+## Notes: Creates a timeline for cooldowns, buffs, debuffs, castbars, and more.
 ## Author: Elstarin - Drak'Thul
 ## Version: 0.0.1
+## SavedVariables: TimelineDB
+## SavedVariablesPerCharacter: TimelineCharDB
 
 Timeline.lua
