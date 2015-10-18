@@ -3,6 +3,7 @@ local TL = Timeline
 
 local optionsFrame = CreateFrame("Frame", "Timeline_Options_Menu", UIParent)
 optionsFrame:SetMovable(true)
+local pName = GetUnitName("player")
 local pClass, CLASS = UnitClass("player")
 local classFunc
 --------------------------------------------------------------------------------
@@ -76,8 +77,8 @@ local debug = TL.debug
 local WIDTH = 800 -- Default 300
 
 local NUMBER_OF_ICONS = 10 -- Default 30
-local ICON_HEIGHT = 25 -- Default 10
-local TOTAL_TIME = 25 -- Default 60 (Total amount of time for the timeline in seconds)
+local ICON_HEIGHT = 30 -- Default 10
+local TOTAL_TIME = 10 -- Default 60 (Total amount of time for the timeline in seconds)
 
 local TEXT_HEIGHT = 16 -- Default 16
 local TEXT_COLOR = {0.93, 0.86, 0.01, 1.0} -- Default 0.93, 0.86, 0.01, 1.0
@@ -251,9 +252,14 @@ elseif CLASS == "PALADIN" then
 				name = "Holy Prism",
 				category = "cooldown",
 			}
-			list[4] = {
-				name = "Cast Bar",
-				category = "castbar",
+			-- list[4] = {
+			-- 	name = "Cast Bar",
+			-- 	category = "castbar",
+			-- 	marks = {2, 3},
+			-- }
+			list[5] = {
+				name = "Cast Bar Negative",
+				category = "castbarnegative",
 				marks = {2, 3},
 			}
     elseif specName == "Protection" then
@@ -348,15 +354,15 @@ end
 --------------------------------------------------------------------------------
 -- Main frame and local tables
 --------------------------------------------------------------------------------
-TL:SetSize(WIDTH, ICON_HEIGHT)
-TL:SetPoint("RIGHT", UIParent, 0, 0) -- 400 is the X coords, 0 is the Y coords
+TL:SetSize(WIDTH - 40, ICON_HEIGHT)
+TL:SetPoint("RIGHT", UIParent, -40, 0) -- 400 is the X coords, 0 is the Y coords
+-- TL:SetPoint("CENTER", UIParent, 500, 0) -- 400 is the X coords, 0 is the Y coords
 
 TL.line = UIParent:CreateTexture(nil, "OVERLAY")
 TL.line:SetTexture(1, 1, 1, 1)
 TL.line:SetSize(1, 1080)
 TL.line:SetPoint("LEFT", TL)
 
-local pName = GetUnitName("player")
 TL.bars = {}
 TL.icons = {}
 TL.updateList = {}
@@ -367,6 +373,7 @@ TL.categories = { -- NOTE: Make sure to add any new category to the index below
 	buff = {},
 	debuff = {},
 	castbar = {},
+  castbarnegative = {},
 	rune = {},
 }
 TL.indexedCategories = {
@@ -374,6 +381,7 @@ TL.indexedCategories = {
 	"buff",
 	"debuff",
 	"castbar",
+  "castbarnegative",
 	"rune",
 }
 --------------------------------------------------------------------------------
@@ -438,6 +446,7 @@ for i, v in ipairs({ -- Register events here
 	"UNIT_AURA",
 	"UNIT_SPELLCAST_STOP",
 	"ADDON_LOADED",
+  "UNIT_SPELLCAST_SUCCEEDED",
   }) do
   TL:RegisterEvent(v)
 end
@@ -458,16 +467,6 @@ local function runAuras(unitID)
 			return TL.UNIT_AURA.BUFF[spellID]:update()
 		elseif TL.UNIT_AURA.DEBUFF and TL.UNIT_AURA.DEBUFF[spellID] then
 			return TL.UNIT_AURA.DEBUFF[spellID]:update()
-		end
-	end
-end
-
-local function stopCastBars()
-	if TL.categories.castbar[1] then
-		for i = 1, #TL.categories.castbar do
-			if TL.categories.castbar[i].slide:IsPlaying() then
-				TL.categories.castbar[i].slide:Stop()
-			end
 		end
 	end
 end
@@ -517,9 +516,21 @@ end
 function TL.SPELL_CAST_START(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school)
 	if srcName ~= pName then return end
 
+  TL.casting = true
+
 	if TL.categories.castbar[1] then
 		for i = 1, #TL.categories.castbar do
-			TL.categories.castbar[i]:update()
+      local spell = TL.categories.castbar[i]
+
+			spell:update()
+		end
+	end
+
+	if TL.categories.castbarnegative[1] then
+		for i = 1, #TL.categories.castbarnegative do
+      local spell = TL.categories.castbarnegative[i]
+
+			spell:update()
 		end
 	end
 end
@@ -527,27 +538,64 @@ end
 function TL.UNIT_SPELLCAST_STOP(unitID, spellName, rank, lineID, spellID)
 	if unitID and unitID ~= "player" then return end
 
-	stopCastBars()
+  TL.casting = false
 
-	-- after(0., stopCastBars)
+  -- if TL.categories.castbar[1] then
+  --   for i = 1, #TL.categories.castbar do
+  --     local spell = TL.categories.castbar[i]
+  --     local icon1 = spell.icon[1]
+  --     local icon2 = spell.icon[2]
+  --
+  --     local icon = spell.icon[spell.currentIcon]
+  --
+  --     if icon.slide:IsPlaying() then
+  --       debug("Stopping current icon:", spell.currentIcon)
+  --       icon.slide:Stop()
+  --     end
+  --
+  --     -- if icon1.slide:IsPlaying() then
+  --     --   debug("Stopping icon1")
+  --     --   icon1.slide:Stop()
+  --     -- end
+  --     --
+  --     -- if icon2.slide:IsPlaying() then
+  --     --   debug("Stopping icon2")
+  --     --   icon2.slide:Stop()
+  --     -- end
+  --   end
+  -- end
 end
 
-function TL.SPELL_CAST_SUCCESS(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school)
-	if srcName ~= pName then return end
+function TL.UNIT_SPELLCAST_SUCCEEDED(unitID, spellName, rank, lineID, spellID)
+	if unitID ~= "player" then return end
 
 	if TL.categories.cooldown[spellID] then
 		TL.categories.cooldown[spellID]:update()
 	end
 
-	local startGCD, GCD = GetSpellCooldown(61304)
+  if TL.casting then -- It was a hard cast that finished
+    TL.casting = false
+  else -- Should mean it was an instant cast
+    local startGCD, GCD = GetSpellCooldown(61304)
 
-	if startGCD > 0 then
-		if TL.categories.castbar[1] then
-			for i = 1, #TL.categories.castbar do
-				TL.categories.castbar[i]:update()
-			end
-		end
-	end
+    if startGCD > 0 then -- Make sure it's on the GCD
+      if TL.categories.castbar[1] then
+        for i = 1, #TL.categories.castbar do
+          local spell = TL.categories.castbar[i]
+
+          spell:update(0.82, 0.35, 0.09, 1.0) -- Make it orange since it's a GCD
+        end
+      end
+
+      if TL.categories.castbarnegative[1] then
+        for i = 1, #TL.categories.castbarnegative do
+          local spell = TL.categories.castbarnegative[i]
+
+          spell:update(0.82, 0.35, 0.09, 1.0) -- Make it orange since it's a GCD
+        end
+      end
+    end
+  end
 end
 
 function TL.RUNE_POWER_UPDATE(runeNum)
@@ -644,26 +692,49 @@ TL:SetScript("OnEvent", function(self, event, ...)
 		local name = ...
 
 		if name == "Timeline" then
-			local specID, specName, description, specIcon, background, role, primaryStat = GetSpecializationInfo(GetSpecialization())
+      local specNum = GetSpecialization()
 
-			if not TimelineDB then TimelineDB = {} end
-			if not TimelineCharDB then TimelineCharDB = {} end
-			if not TimelineCharDB[pClass] then TimelineCharDB[pClass] = {} end
-			if not TimelineCharDB[pClass][specName] then TimelineCharDB[pClass][specName] = {} end
+      if specNum then
+  			local specID, specName, description, specIcon, background, role, primaryStat = GetSpecializationInfo(specNum)
 
-			TL.charDB = TimelineCharDB[pClass][specName]
+  			if not TimelineDB then TimelineDB = {} end
+  			if not TimelineCharDB then TimelineCharDB = {} end
+  			if not TimelineCharDB[pClass] then TimelineCharDB[pClass] = {} end
+  			if not TimelineCharDB[pClass][specName] then TimelineCharDB[pClass][specName] = {} end
 
-			TL.loadList(specName)
-			TL.startCombat() -- NOTE: Testing only
+  			TL.charDB = TimelineCharDB[pClass][specName]
+
+  			TL.loadList(specName)
+  			TL.startCombat() -- NOTE: Testing only
+      else -- When logging in, spec information isn't available right away, so create a function and handle it on PLAYER_LOGIN.
+        function TL.setupSVars()
+          local specID, specName, description, specIcon, background, role, primaryStat = GetSpecializationInfo(GetSpecialization())
+
+          if not TimelineDB then TimelineDB = {} end
+          if not TimelineCharDB then TimelineCharDB = {} end
+          if not TimelineCharDB[pClass] then TimelineCharDB[pClass] = {} end
+          if not TimelineCharDB[pClass][specName] then TimelineCharDB[pClass][specName] = {} end
+
+          TL.charDB = TimelineCharDB[pClass][specName]
+
+          TL.loadList(specName)
+          TL.startCombat() -- NOTE: Testing only
+        end
+      end
 		end
 	elseif event == "PLAYER_LOGIN" then
-		if debugMode then
-			TL.createOptionsFrame()
+    if TL.setupSVars then
+      debug("Delayed loading of SVars until login.")
+      TL.setupSVars()
+    end
 
-			after(1, function()
-				TL.options:Show()
-			end)
-		end
+		-- if debugMode then
+		-- 	TL.createOptionsFrame()
+    --
+		-- 	after(1, function()
+		-- 		TL.options:Show()
+		-- 	end)
+		-- end
   elseif event == "PLAYER_REGEN_ENABLED" then -- Leaving combat
 		TL.stopCombat()
   elseif event == "PLAYER_REGEN_DISABLED" then -- Entering combat
@@ -738,12 +809,390 @@ local function round(num, decimals)
 	end
 end
 
+do -- Create list frame type functions
+  TL.categoryFuncs = {}
+  local funcs = TL.categoryFuncs
+
+  for i = 1, #TL.indexedCategories do
+    local category = TL.indexedCategories[i]
+
+    if category == "cooldown" then
+      if not funcs.cooldown then
+        function funcs.cooldown(i, spell, list, spellID, spellName, unit)
+          local icon, slide, text, line
+
+          icon = spell.icon
+          if not icon then
+            icon = CreateFrame("Frame", "Timeline_Icon_" .. i, TL)
+            icon:SetPoint("RIGHT", TL, "TOPLEFT", 0, -((i - 1) * ICON_HEIGHT))
+            icon:SetSize(ICON_HEIGHT - 2, ICON_HEIGHT - 2)
+
+            local texture = GetSpellTexture(spellID or spellName)
+            icon.texture = icon:CreateTexture(nil, "ARTWORK")
+            icon.texture:SetTexture(texture or 0, 0, 0.8, 1.0)
+            icon.texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+            icon.texture:SetAlpha(0.9)
+            icon.texture:SetAllPoints()
+
+            slide = icon.slide
+            if not slide then -- Create animation
+              slide = icon:CreateAnimationGroup("SlideButtons")
+
+              slide[1] = slide:CreateAnimation("Translation")
+              slide[1]:SetOrder(1)
+
+              slide[2] = slide:CreateAnimation("Translation")
+              slide[2]:SetOrder(2)
+
+              slide:SetScript("OnFinished", function(self, requested)
+                if icon.line then icon.line:Hide() end
+                if icon.text then icon.text:Hide() end
+
+                if category == "castbar" then icon:Hide() end
+              end)
+
+              icon.slide = slide
+            end
+
+            text = icon.text
+            if list.text and not text then
+              text = icon:CreateFontString(nil, "OVERLAY")
+              text:SetPoint("CENTER", icon, 0, 0)
+              text:SetFont("Fonts\\FRIZQT__.TTF", TEXT_HEIGHT, "OUTLINE")
+              text:SetTextColor(unpack(TEXT_COLOR))
+
+              icon.text = text
+            end
+
+            line = icon.line
+            if list.line and not line then
+              line = icon:CreateTexture(nil, "ARTWORK")
+              line:SetTexture(1, 1, 1, 1)
+              line:SetSize(list.lineWidth or 1, list.lineHeight or UIParent:GetHeight())
+              line:SetPoint("RIGHT")
+              line:Hide()
+
+              icon.line = line
+            end
+
+            tinsert(TL.icons, icon)
+          end
+
+          return icon, slide, text, line
+        end
+      end
+    elseif category == "buff" then
+      if not funcs.buff then
+        function funcs.buff(i, spell, list, spellID, spellName, unit)
+          local icon, slide, text, line
+
+          icon = spell.icon
+          if not icon then
+            icon = CreateFrame("Frame", "Timeline_Icon_" .. i, TL)
+            icon:SetPoint("RIGHT", TL, "TOPLEFT", 0, -((i - 1) * ICON_HEIGHT))
+            icon:SetSize(ICON_HEIGHT - 2, ICON_HEIGHT - 2)
+
+            local texture = GetSpellTexture(spellID or spellName)
+            icon.texture = icon:CreateTexture(nil, "ARTWORK")
+            icon.texture:SetTexture(texture or 0, 0, 0.8, 1.0)
+            icon.texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+            icon.texture:SetAlpha(0.9)
+            icon.texture:SetAllPoints()
+
+            slide = icon.slide
+            if not slide then -- Create animation
+              slide = icon:CreateAnimationGroup("SlideButtons")
+
+              slide[1] = slide:CreateAnimation("Translation")
+              slide[1]:SetOrder(1)
+
+              slide[2] = slide:CreateAnimation("Translation")
+              slide[2]:SetOrder(2)
+
+              slide:SetScript("OnFinished", function(self, requested)
+                if icon.line then icon.line:Hide() end
+                if icon.text then icon.text:Hide() end
+
+                if category == "castbar" then icon:Hide() end
+              end)
+
+              icon.slide = slide
+            end
+
+            text = icon.text
+            if list.text and not text then
+              text = icon:CreateFontString(nil, "OVERLAY")
+              text:SetPoint("CENTER", icon, 0, 0)
+              text:SetFont("Fonts\\FRIZQT__.TTF", TEXT_HEIGHT, "OUTLINE")
+              text:SetTextColor(unpack(TEXT_COLOR))
+
+              icon.text = text
+            end
+
+            line = icon.line
+            if list.line and not line then
+              line = icon:CreateTexture(nil, "ARTWORK")
+              line:SetTexture(1, 1, 1, 1)
+              line:SetSize(list.lineWidth or 1, list.lineHeight or UIParent:GetHeight())
+              line:SetPoint("RIGHT")
+              line:Hide()
+
+              icon.line = line
+            end
+
+            tinsert(TL.icons, icon)
+          end
+
+          return icon, slide, text, line
+        end
+      end
+    elseif category == "debuff" then
+      if not funcs.debuff then
+        function funcs.debuff(i, spell, list, spellID, spellName, unit)
+          local icon, slide, text, line
+
+          icon = spell.icon
+          if not icon then
+            icon = CreateFrame("Frame", "Timeline_Icon_" .. i, TL)
+            icon:SetPoint("RIGHT", TL, "TOPLEFT", 0, -((i - 1) * ICON_HEIGHT))
+            icon:SetSize(ICON_HEIGHT - 2, ICON_HEIGHT - 2)
+
+            local texture = GetSpellTexture(spellID or spellName)
+            icon.texture = icon:CreateTexture(nil, "ARTWORK")
+            icon.texture:SetTexture(texture or 0, 0, 0.8, 1.0)
+            icon.texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+            icon.texture:SetAlpha(0.9)
+            icon.texture:SetAllPoints()
+
+            slide = icon.slide
+            if not slide then -- Create animation
+              slide = icon:CreateAnimationGroup("SlideButtons")
+
+              slide[1] = slide:CreateAnimation("Translation")
+              slide[1]:SetOrder(1)
+
+              slide[2] = slide:CreateAnimation("Translation")
+              slide[2]:SetOrder(2)
+
+              slide:SetScript("OnFinished", function(self, requested)
+                if icon.line then icon.line:Hide() end
+                if icon.text then icon.text:Hide() end
+
+                if category == "castbar" then icon:Hide() end
+              end)
+
+              icon.slide = slide
+            end
+
+            text = icon.text
+            if list.text and not text then
+              text = icon:CreateFontString(nil, "OVERLAY")
+              text:SetPoint("CENTER", icon, 0, 0)
+              text:SetFont("Fonts\\FRIZQT__.TTF", TEXT_HEIGHT, "OUTLINE")
+              text:SetTextColor(unpack(TEXT_COLOR))
+
+              icon.text = text
+            end
+
+            line = icon.line
+            if list.line and not line then
+              line = icon:CreateTexture(nil, "ARTWORK")
+              line:SetTexture(1, 1, 1, 1)
+              line:SetSize(list.lineWidth or 1, list.lineHeight or UIParent:GetHeight())
+              line:SetPoint("RIGHT")
+              line:Hide()
+
+              icon.line = line
+            end
+
+            tinsert(TL.icons, icon)
+          end
+
+          return icon, slide, text, line
+        end
+      end
+    elseif category == "castbar" then
+      if not funcs.castbar then
+        function funcs.castbar(i, spell, list, spellID, spellName, unit)
+          spell.icon = {}
+
+          for index = 1, 2 do
+            local icon, slide, text, line
+
+            icon = spell.icon[index]
+            if not icon then
+              icon = CreateFrame("Frame", "Timeline_Icon_" .. i .. "_" .. index, TL)
+              icon:SetPoint("RIGHT", TL, "TOPLEFT", 0, -((i - 1) * ICON_HEIGHT))
+              icon:SetSize(ICON_HEIGHT - 2, ICON_HEIGHT - 2)
+
+              icon.texture = icon:CreateTexture(nil, "ARTWORK")
+              icon.texture:SetTexture(0.0, 0.0, 0.8, 1.0)
+              icon.texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+              icon.texture:SetAlpha(0.9)
+              icon.texture:SetAllPoints()
+
+              slide = icon.slide
+              if not slide then -- Create animation
+                slide = icon:CreateAnimationGroup("SlideButtons")
+
+                slide[1] = slide:CreateAnimation("Translation")
+                slide[1]:SetOrder(1)
+
+                slide[2] = slide:CreateAnimation("Translation")
+                slide[2]:SetOrder(2)
+
+                slide[3] = slide:CreateAnimation("Translation")
+                slide[3]:SetOrder(3)
+
+                slide:SetScript("OnFinished", function(self, requested)
+                  if icon.line then icon.line:Hide() end
+                  if icon.text then icon.text:Hide() end
+
+                  if category == "castbar" then icon:Hide() end
+                end)
+
+                icon.slide = slide
+              end
+
+              text = icon.text
+              if list.text and not text then
+                text = icon:CreateFontString(nil, "OVERLAY")
+                text:SetPoint("CENTER", icon, 0, 0)
+                text:SetFont("Fonts\\FRIZQT__.TTF", TEXT_HEIGHT, "OUTLINE")
+                text:SetTextColor(unpack(TEXT_COLOR))
+
+                icon.text = text
+              end
+
+              line = icon.line
+              if list.line and not line then
+                line = icon:CreateTexture(nil, "ARTWORK")
+                line:SetTexture(1, 1, 1, 1)
+                line:SetSize(list.lineWidth or 1, list.lineHeight or UIParent:GetHeight())
+                line:SetPoint("RIGHT")
+                line:Hide()
+
+                icon.line = line
+              end
+
+              icon:Hide()
+              spell.icon[index] = icon
+            end
+
+            tinsert(TL.icons, icon)
+          end
+
+          return spell.icon, slide, text, line
+        end
+      end
+    elseif category == "castbarnegative" then
+      if not funcs.castbarnegative then
+        function funcs.castbarnegative(i, spell, list, spellID, spellName, unit)
+          spell.icon = {}
+          spell.icon.filling = {}
+
+          for index = 1, 2 do
+            local icon, slide, text, line
+
+            icon = spell.icon[index]
+            if not icon then
+              icon = CreateFrame("Frame", "Timeline_Icon_" .. i .. "_" .. index, TL)
+              icon:SetPoint("RIGHT", TL, "TOPLEFT", 0, -((i - 1) * ICON_HEIGHT))
+              icon:SetSize(ICON_HEIGHT - 2, ICON_HEIGHT - 2)
+
+              icon.texture = icon:CreateTexture(nil, "ARTWORK")
+              icon.texture:SetTexture(0.0, 0.0, 0.8, 1.0)
+              icon.texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+              icon.texture:SetAlpha(0.0)
+              icon.texture:SetAllPoints()
+
+              local fill = icon.fill
+              if not fill then
+                fill = icon:CreateTexture(nil, "ARTWORK")
+                fill:SetTexture(1.0, 0.0, 0.0, 1.0)
+                fill:SetHeight(ICON_HEIGHT - 2)
+                fill:Hide()
+
+                icon.fill = fill
+              end
+
+              slide = icon.slide
+              if not slide then -- Create animation
+                slide = icon:CreateAnimationGroup()
+
+                slide[1] = slide:CreateAnimation("Path")
+                slide[1]:SetOrder(1)
+
+                slide[2] = slide:CreateAnimation("Path")
+                slide[2]:SetOrder(2)
+
+                slide[3] = slide:CreateAnimation("Path")
+                slide[3]:SetOrder(3)
+
+                slide:SetScript("OnFinished", function(self, requested)
+                  if icon.line then icon.line:Hide() end
+                  if icon.text then icon.text:Hide() end
+
+                  if category == "castbar" then
+                    icon:Hide()
+                  elseif category == "castbarnegative" then
+                    icon:Hide()
+                    icon.fill:Hide()
+                  end
+                end)
+
+                icon.slide = slide
+              end
+
+              text = icon.text
+              if list.text and not text then
+                text = icon:CreateFontString(nil, "OVERLAY")
+                text:SetPoint("CENTER", icon, 0, 0)
+                text:SetFont("Fonts\\FRIZQT__.TTF", TEXT_HEIGHT, "OUTLINE")
+                text:SetTextColor(unpack(TEXT_COLOR))
+
+                icon.text = text
+              end
+
+              line = icon.line
+              if list.line and not line then
+                line = icon:CreateTexture(nil, "ARTWORK")
+                line:SetTexture(1, 1, 1, 1)
+                line:SetSize(list.lineWidth or 1, list.lineHeight or UIParent:GetHeight())
+                line:SetPoint("RIGHT")
+                line:Hide()
+
+                icon.line = line
+              end
+
+              icon:Hide()
+              spell.icon[index] = icon
+            end
+
+            tinsert(TL.icons, icon)
+          end
+
+          return spell.icon, slide, text, line
+        end
+      end
+    elseif category == "rune" then
+      if not funcs.rune then
+        function funcs.rune(i, spell, list, spellID, spellName, unit)
+
+        end
+      end
+    else
+      debug("No category for:", category)
+    end
+  end
+end
+
 function TL.loadList(specName)
 	local specName = specName or select(2, GetSpecializationInfo(GetSpecialization()))
 	local list = classFunc(specName)
 
 	for i = 1, NUMBER_OF_ICONS do
-		local list = TL.charDB[i] or list[i]
+		local list = TL.charDB[i] or list[i] -- Take it from SVars if it exists, otherwise go with the list version
 
 		local spell
 		if list then
@@ -756,72 +1205,11 @@ function TL.loadList(specName)
 			local spellID = list.ID or select(7, GetSpellInfo(spellName))
 			local unit = list.unit or "player"
 
-			local icon, slide = spell.icon
-			if not icon then
-				icon = CreateFrame("Frame", "Timeline_Icon_" .. i, TL)
-				icon:SetPoint("RIGHT", TL, "TOPLEFT", 0, -((i - 1) * ICON_HEIGHT))
-				icon:SetSize(ICON_HEIGHT - 2, ICON_HEIGHT - 2)
+      if TL.categoryFuncs[category] then
+        spell.icon, spell.slide, spell.text, spell.line = TL.categoryFuncs[category](i, spell, list, spellID, spellName, unit)
+      end
 
-				local texture = GetSpellTexture(spellID or spellName) or "Interface\\ChatFrame\\ChatFrameBackground"
-				icon.texture = icon:CreateTexture(nil, "ARTWORK")
-				icon.texture:SetTexture(texture)
-				icon.texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-				icon.texture:SetAlpha(0.9)
-				icon.texture:SetAllPoints()
-
-				slide = icon.slide
-				if not slide then -- Create animation
-					slide = icon:CreateAnimationGroup("SlideButtons")
-
-					slide[1] = slide:CreateAnimation("Translation")
-					slide[1]:SetOrder(1)
-
-					slide[2] = slide:CreateAnimation("Translation")
-					slide[2]:SetOrder(2)
-
-					slide:SetScript("OnFinished", function(self, requested)
-						if icon.line then
-							icon.line:Hide()
-						end
-
-						if icon.text then
-							icon.text:Hide()
-						end
-
-						if category == "castbar" then
-							icon:Hide()
-						end
-					end)
-
-					icon.slide = slide
-					spell.slide = slide
-				end
-
-				if list.text == true then
-					icon.text = icon:CreateFontString(nil, "OVERLAY")
-					icon.text:SetPoint("CENTER", icon, 0, 0)
-					icon.text:SetFont("Fonts\\FRIZQT__.TTF", TEXT_HEIGHT, "OUTLINE")
-					icon.text:SetTextColor(unpack(TEXT_COLOR))
-					-- round(text, remaining)
-
-					spell.text = icon.text
-				end
-
-				if list.line == true then
-					icon.line = icon:CreateTexture(nil, "ARTWORK")
-					icon.line:SetTexture(1, 1, 1, 1)
-					icon.line:SetSize(list.lineWidth or 1, list.lineHeight or UIParent:GetHeight())
-					icon.line:SetPoint("RIGHT")
-					icon.line:Hide()
-
-					spell.line = icon.line
-				end
-
-				spell.icon = icon
-				tinsert(TL.icons, icon)
-			end
-
-			spell.icon = icon
+      local icon, slide, text, line = spell.icon, spell.slide, spell.text, spell.line
 
 			if category then
 				if spellID then TL.categories[category][spellID] = spell end
@@ -831,13 +1219,11 @@ function TL.loadList(specName)
 				if category == "cooldown" then
 					function spell:update(cTime, timer)
 						local cTime = cTime or GetTime()
-						-- local baseCD = (GetSpellBaseCooldown(spellID) or 0) * 0.001
-
-						local cooldown, charges, chargeMax, chargeStart, chargeDuration, start, duration, endCD
 
 						local startGCD, GCD = GetSpellCooldown(61304)
 						local start, duration = GetSpellCooldown(spellID)
 						local remaining = (start + duration) - cTime
+            local total = start + duration
 
 						do -- Handles updating the bar's width
 							local frameWidth = TL:GetWidth()
@@ -845,32 +1231,60 @@ function TL.loadList(specName)
 							local x = (frameWidth * remaining) / TOTAL_TIME
 
 							if duration ~= GCD then
-								if not slide:IsPlaying() then
-									if remaining >= TOTAL_TIME then
-										local delay = remaining - TOTAL_TIME
-										slide[2]:SetStartDelay(remaining - TOTAL_TIME)
-										slide[2]:SetDuration(remaining - delay)
-									else
-										slide[2]:SetStartDelay(0)
-										slide[2]:SetDuration(remaining)
-									end
+								-- if not slide:IsPlaying() then
+								-- 	if remaining >= TOTAL_TIME then
+								-- 		local delay = remaining - TOTAL_TIME
+								-- 		slide[2]:SetStartDelay(remaining - TOTAL_TIME)
+								-- 		slide[2]:SetDuration(remaining - delay)
+								-- 	else
+								-- 		slide[2]:SetStartDelay(0)
+								-- 		slide[2]:SetDuration(remaining)
+								-- 	end
+                --
+								-- 	slide[1]:SetDuration(0.001)
+                --
+								-- 	slide[1]:SetOffset(x, 0)
+								-- 	slide[2]:SetOffset(-x, 0)
+                --
+								-- 	if slide:IsPlaying() then slide:Stop() end
+								-- 	slide:Play()
+                --
+								-- 	if icon.line then
+								-- 		icon.line:Show()
+								-- 	end
+                --
+								-- 	if icon.text then
+								-- 		icon.text:Show()
+								-- 	end
+								-- end
 
-									slide[1]:SetDuration(0.001)
+                do -- Creates the ticker
+                  local frameWidth = TL:GetWidth()
+                  local x = (frameWidth * remaining) / TOTAL_TIME
+                  local right = UIParent:GetRight()
+                  local edge = right - TL.line:GetRight()
+                  icon:SetPoint("RIGHT", TL, "TOPLEFT", edge, -((i - 1) * ICON_HEIGHT))
 
-									slide[1]:SetOffset(x, 0)
-									slide[2]:SetOffset(-x, 0)
+                  newTicker(0.001, function(ticker)
+                    local remaining = total - GetTime()
+                    local x = (frameWidth * remaining) / TOTAL_TIME
 
-									if slide:IsPlaying() then slide:Stop() end
-									slide:Play()
+                    if edge > x then
+                      if 0 >= x then
+                        x = 0
+                        ticker:Cancel()
 
-									if icon.line then
-										icon.line:Show()
-									end
+                        if icon.line then icon.line:Hide() end
+                        if icon.text then icon.text:Hide() end
+                      end
 
-									if icon.text then
-										icon.text:Show()
-									end
-								end
+                      icon:SetPoint("RIGHT", TL, "TOPLEFT", x, -((i - 1) * ICON_HEIGHT))
+                    end
+                  end)
+                end
+
+                if icon.line then icon.line:Show() end
+                if icon.text then icon.text:Show() end
 							else
 								after(0.005, spell.update)
 								-- debug("Duration matches GCD, calling back in", 0.005, "seconds")
@@ -976,16 +1390,20 @@ function TL.loadList(specName)
 						end
 					end
 				elseif category == "castbar" then
-					function spell:update()
+          local count = 1
+
+					function spell:update(c1, c2, c3, c4)
 						local cTime = GetTime()
 
-						local name, nameSubtext, text, texture, start, stop, tradeSkill, castID, notInterruptible = UnitCastingInfo(unit)
 						local remaining
+            count = count + 1
 
-						if name then
+						local name, nameSubtext, text, texture, start, stop, tradeSkill, castID, notInterruptible = UnitCastingInfo(unit)
+
+						if name then -- There is an active cast
 							remaining = (stop - start) / 1000
-						else
-							local startGCD, GCD = GetSpellCooldown(61304)
+						else -- No active cast, check GCD instead
+							local startGCD, GCD = GetSpellCooldown(61304) -- This spellID checks the GCD specifically
 
 							if GCD then
 								remaining = (startGCD + GCD) - cTime
@@ -1009,6 +1427,16 @@ function TL.loadList(specName)
 							end
 						end
 
+            spell.currentIcon = (count % 2) + 1
+            local icon = spell.icon[(count % 2) + 1]
+            local slide, text, line = icon.slide, icon.text, icon.line
+
+            if c1 then -- Override color sent
+              icon.texture:SetTexture(c1, c2, c3, c4)
+            else
+              icon.texture:SetTexture(0.0, 0.0, 0.8, 1.0)
+            end
+
 						do -- Handles updating the bar's width
 							local x = (TL:GetWidth() * remaining) / TOTAL_TIME
 
@@ -1025,12 +1453,92 @@ function TL.loadList(specName)
 							end
 
 							slide[1]:SetDuration(0.001)
+              slide[3]:SetDuration(remaining * 2)
 
 							slide[1]:SetOffset(x, 0)
 							slide[2]:SetOffset(-x, 0)
+							slide[3]:SetOffset(-(x * 2), 0)
 
 							if slide:IsPlaying() then slide:Stop() end
 							slide:Play()
+
+							if icon.line then
+								icon.line:Show()
+							end
+
+							if icon.text then
+								icon.text:Show()
+							end
+						end
+					end
+				elseif category == "castbarnegative" then
+          local count = 0
+          local hiddenLines = {}
+
+					function spell:update(c1, c2, c3, c4)
+						local cTime = GetTime()
+
+            count = count + 1
+
+						local name, nameSubtext, text, texture, start, stop, tradeSkill, castID, notInterruptible = UnitCastingInfo(unit)
+            local startGCD, GCD = GetSpellCooldown(61304) -- This spellID checks the GCD specifically
+
+            local castTime = ((stop or 0) - (start or 0)) / 1000
+            local total = max(cTime + castTime, startGCD + GCD)
+            local remaining = total - GetTime()
+
+						if spell.marks then
+							for i = 1, #spell.marks do
+								local mark = spell.marks[i]
+
+								local name, rank, icon, castTime, minRange, maxRange, spellID = GetSpellInfo(mark)
+
+								if name then
+									local haste = GetHaste()
+
+									local baseCastLength = round(castTime * (1 + (haste / 100)) / 1000, 1)
+									local castLength = baseCastLength / (1 + (haste / 100))
+								end
+							end
+						end
+
+						do -- Handles updating the bar's width
+              local frameWidth = TL:GetWidth()
+              local x = (frameWidth * remaining) / TOTAL_TIME
+
+              local hidden = TL:CreateTexture(nil, "ARTWORK")
+              hidden:SetSize(x, ICON_HEIGHT - 2)
+              hidden:SetPoint("RIGHT", TL, "TOPLEFT", x, -((i - 1) * ICON_HEIGHT))
+              local num = #hiddenLines + 1 -- Keep this num index, it's used in the ticker
+              hiddenLines[num] = hidden
+
+              local fill = TL:CreateTexture(nil, "ARTWORK")
+              fill:SetTexture(1.0, 0.0, 0.0, 1.0)
+              fill:SetHeight(ICON_HEIGHT - 2)
+              fill:SetPoint("LEFT", hidden, "RIGHT")
+              fill:SetPoint("RIGHT", TL.line, "LEFT")
+
+              newTicker(0.001, function(ticker)
+                local remaining = total - GetTime()
+                local x = (frameWidth * remaining) / TOTAL_TIME
+
+                hidden:SetPoint("RIGHT", TL, "TOPLEFT", x, -((i - 1) * ICON_HEIGHT))
+
+                if 0 >= x then
+                  if hiddenLines[num + 1] and not hiddenLines[num + 1].set then -- This ticker's hidden texture is no longer the most recent one
+                    fill:SetPoint("RIGHT", hiddenLines[num + 1], "LEFT")
+                    hiddenLines[num + 1].set = true
+                  end
+
+                  if hiddenLines[num + 1] and hiddenLines[num + 1]:GetLeft() < 0 then -- Make sure the most recent doesn't get cancelled
+                    ticker:Cancel()
+                    fill:Hide()
+                    hiddenLines[num] = false
+                    hidden = nil
+                    fill = nil
+                  end
+                end
+              end)
 
 							if icon.line then
 								icon.line:Show()
@@ -1287,8 +1795,6 @@ local function addListEntry(input)
 end
 
 function TL.createOptionsFrame()
-	-- TL.charDB
-
 	local f = TL.options
 	if not f then
 		f = optionsFrame -- NOTE: Frame is created at the top so that its position gets saved properly.
@@ -2935,6 +3441,368 @@ function TL.createOptionsFrame()
 						expander:SetHeight(dropDown:GetHeight() + self:GetHeight())
 					end
 				end
+			elseif category == "castbarnegative" then
+				if not scroll.castbarnegative then
+					function scroll:castbarnegative()
+						local height = 0
+						local dropDown = self.dropDown
+						local expander = self.expander
+
+						if not dropDown.input then
+							dropDown.input = {}
+						end
+
+						dropDown.input.category = category
+
+						local ID = dropDown.ID
+						if not ID then
+							ID = CreateFrame("Frame", nil, dropDown)
+
+							ID:SetSize(80, 30)
+							ID:SetPoint("TOPRIGHT", -3, -3)
+							ID:SetPoint("TOPLEFT", 3, -3)
+
+							ID.background = ID:CreateTexture(nil, "BACKGROUND")
+							ID.background:SetAllPoints()
+							ID.background:SetTexture(0.7, 0.7, 0.7, 0.1)
+
+							ID.title = ID:CreateFontString(nil, "ARTWORK")
+							ID.title:SetPoint("LEFT", 2, 0)
+							ID.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
+							ID.title:SetTextColor(1, 1, 1, 1)
+							ID.title:SetText("Enter a spellID:")
+
+							local e = CreateFrame("EditBox", nil, ID)
+							-- e:SetSize(100, ID:GetHeight() - 10)
+							e:SetPoint("LEFT", ID.title, "RIGHT", 10, 0)
+							e:SetPoint("RIGHT", ID, -10, 0)
+							e:SetFont("Fonts\\FRIZQT__.TTF", 25, "OUTLINE")
+							e:SetTextColor(0.0, 0.5, 0.5, 1)
+
+							e.texture = e:CreateTexture(nil, "BACKGROUND")
+							e.texture:SetTexture(0, 0, 0, 1)
+							e.texture:SetAllPoints()
+
+							e:SetMultiLine(true)
+							e:SetMaxLetters(100)
+							e:SetAutoFocus(false)
+
+							do -- Scripts
+								e:SetScript("OnEscapePressed", function(self)
+									e:ClearFocus()
+								end)
+
+								e:SetScript("OnEnterPressed", function(self)
+									e:ClearFocus()
+								end)
+
+								-- e:SetScript("OnEditFocusGained", function(self)
+								--   self:HighlightText()
+								-- end)
+
+								e:SetScript("OnEditFocusLost", function(self)
+									local string = self:GetText():trim()
+
+									dropDown.input.spellID = nil
+									dropDown.input.spellName = nil
+
+									if string ~= "" then
+										local num = string:match("(%d+)")
+										local num = tonumber(num)
+
+										if num then
+											local spellName, rank, icon, castTime, minRange, maxRange, spellID = GetSpellInfo(num)
+
+											if spellID then
+												dropDown.currentSpell.title:SetText("Current spell: |cFF00CCFF" .. spellName .. "|r")
+												dropDown.currentSpell.icon:SetTexture(icon)
+
+												dropDown.input.spellID = spellID
+												dropDown.input.spellName = spellName
+											else
+												dropDown.currentSpell.title:SetText("Current spell: |cFF9E5A01Invalid ID|r.")
+												dropDown.currentSpell.icon:SetTexture(nil)
+											end
+										else
+											dropDown.currentSpell.title:SetText("Enter a spellID in the edit box.")
+											dropDown.currentSpell.icon:SetTexture(nil)
+										end
+									end
+
+									addListEntry(dropDown.input)
+								end)
+							end
+
+							ID.editBox = e
+							dropDown.ID = ID
+						end
+
+						local currentSpell = dropDown.currentSpell
+						if not currentSpell then
+							currentSpell = CreateFrame("Frame", nil, dropDown)
+
+							currentSpell:SetSize(80, 30)
+							currentSpell:SetPoint("TOPRIGHT", ID, "BOTTOMRIGHT", 0, -3)
+							currentSpell:SetPoint("TOPLEFT", ID, "BOTTOMLEFT", 0, -3)
+
+							currentSpell.background = currentSpell:CreateTexture(nil, "BACKGROUND")
+							currentSpell.background:SetAllPoints()
+							currentSpell.background:SetTexture(0.7, 0.7, 0.7, 0.1)
+
+							local icon = currentSpell.icon
+							if not icon then -- Create Icon
+								local iconHeight = currentSpell:GetHeight() - 10
+
+								icon = currentSpell:CreateTexture(nil, "OVERLAY")
+								icon:SetSize(iconHeight, iconHeight)
+								icon:SetPoint("RIGHT", -10, 0)
+								icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+								icon:SetAlpha(0.9)
+
+								currentSpell.icon = icon
+							end
+
+							local title = currentSpell.title
+							if not title then
+								title = currentSpell:CreateFontString(nil, "ARTWORK")
+								title:SetPoint("LEFT", 2, 0)
+								title:SetFont("Fonts\\FRIZQT__.TTF", 15)
+								title:SetTextColor(1, 1, 1, 1)
+								title:SetText("Current spell:")
+
+								currentSpell.title = title
+							end
+
+							dropDown.currentSpell = currentSpell
+						end
+
+						local index = dropDown.index
+						if not index then
+							index = CreateFrame("Frame", nil, dropDown)
+
+							index:SetSize(80, 30)
+							index:SetPoint("TOPRIGHT", currentSpell, "BOTTOMRIGHT", 0, -3)
+							index:SetPoint("TOPLEFT", currentSpell, "BOTTOMLEFT", 0, -3)
+
+							index.background = index:CreateTexture(nil, "BACKGROUND")
+							index.background:SetAllPoints()
+							index.background:SetTexture(0.7, 0.7, 0.7, 0.1)
+
+							local title = index.title
+							if not title then
+								title = index:CreateFontString(nil, "ARTWORK")
+								title:SetPoint("LEFT", 2, 0)
+								title:SetFont("Fonts\\FRIZQT__.TTF", 15)
+								title:SetTextColor(1, 1, 1, 1)
+								title:SetText("Index: ")
+
+								index.title = title
+							end
+
+							local e = index.editBox
+							if not e then
+								e = CreateFrame("EditBox", nil, index)
+								e:SetSize(100, 100)
+								e:SetPoint("TOP", title, 0, 5)
+								e:SetPoint("BOTTOM", title, 0, -5)
+								e:SetPoint("RIGHT", index, -10, 0)
+								e:SetFont("Fonts\\FRIZQT__.TTF", 25, "OUTLINE")
+								e:SetTextColor(0.0, 0.5, 0.5, 1)
+
+								e.texture = e:CreateTexture(nil, "BACKGROUND")
+								e.texture:SetTexture(0, 0, 0, 1)
+								e.texture:SetAllPoints()
+
+								e:SetMultiLine(true)
+								e:SetMaxLetters(100)
+								e:SetAutoFocus(false)
+
+								do -- Scripts
+									e:SetScript("OnEscapePressed", function(self)
+										e:ClearFocus()
+									end)
+
+									e:SetScript("OnEnterPressed", function(self)
+										e:ClearFocus()
+									end)
+
+									e:SetScript("OnEditFocusLost", function(self)
+										local string = self:GetText():lower():trim()
+
+										dropDown.input.index = nil
+
+										if string ~= "" then
+											local num = string:match("%d+")
+											local num = tonumber(num)
+
+											if num then
+												if num > NUMBER_OF_ICONS then
+													num = NUMBER_OF_ICONS
+													self:SetText(NUMBER_OF_ICONS)
+												end
+
+												dropDown.input.index = num
+											else
+												self:SetText(nil)
+											end
+										end
+
+										addListEntry(dropDown.input)
+									end)
+								end
+
+								index.editBox = e
+							end
+
+							dropDown.index = index
+						end
+
+						local line = dropDown.line
+						if not line then
+							line = CreateFrame("Frame", nil, dropDown)
+
+							line:SetSize(80, 60)
+							line:SetPoint("TOPRIGHT", index, "BOTTOMRIGHT", 0, -3)
+							line:SetPoint("TOPLEFT", index, "BOTTOMLEFT", 0, -3)
+
+							line.background = line:CreateTexture(nil, "BACKGROUND")
+							line.background:SetAllPoints()
+							line.background:SetTexture(0.7, 0.7, 0.7, 0.1)
+
+							local title = line.title
+							if not title then
+								title = line:CreateFontString(nil, "ARTWORK")
+								title:SetPoint("TOPLEFT", 2, -10)
+								title:SetFont("Fonts\\FRIZQT__.TTF", 15)
+								title:SetTextColor(1, 1, 1, 1)
+								title:SetText("Vertical line: (Yes/No)")
+
+								line.title = title
+							end
+
+							local e = line.editBox1
+							if not e then
+								e = CreateFrame("EditBox", nil, line)
+								e:SetSize(100, 100)
+								e:SetPoint("TOP", title, 0, 5)
+								e:SetPoint("BOTTOM", title, 0, -5)
+								e:SetPoint("RIGHT", line, -10, 0)
+								e:SetFont("Fonts\\FRIZQT__.TTF", 25, "OUTLINE")
+								e:SetTextColor(0.0, 0.5, 0.5, 1)
+
+								e.texture = e:CreateTexture(nil, "BACKGROUND")
+								e.texture:SetTexture(0, 0, 0, 1)
+								e.texture:SetAllPoints()
+
+								e:SetMultiLine(true)
+								e:SetMaxLetters(100)
+								e:SetAutoFocus(false)
+
+								do -- Scripts
+									e:SetScript("OnEscapePressed", function(self)
+										e:ClearFocus()
+									end)
+
+									e:SetScript("OnEnterPressed", function(self)
+										e:ClearFocus()
+									end)
+
+									e:SetScript("OnEditFocusLost", function(self)
+										local string = self:GetText():lower():trim()
+
+										dropDown.input.line = nil
+
+										if string ~= "" then
+											if string:match("yes") or string:match("y") then
+												debug(string, "Matched yes")
+												dropDown.input.line = true
+											elseif string:match("no") or string:match("n") or string:match("nil") then
+												debug(string, "Matched no")
+											else
+												debug(string, "Didn't match either")
+											end
+										end
+
+										addListEntry(dropDown.input)
+									end)
+								end
+
+								line.editBox1 = e
+							end
+
+							local lineHeight = line.lineHeight
+							if not lineHeight then
+								lineHeight = line:CreateFontString(nil, "ARTWORK")
+								lineHeight:SetPoint("BOTTOMLEFT", 2, 8)
+								lineHeight:SetFont("Fonts\\FRIZQT__.TTF", 15)
+								lineHeight:SetTextColor(1, 1, 1, 1)
+								lineHeight:SetText("Line height:")
+
+								line.lineHeight = lineHeight
+							end
+
+							local e = line.editBox2
+							if not e then
+								e = CreateFrame("EditBox", nil, line)
+								e:SetSize(100, 100)
+								e:SetPoint("TOP", lineHeight, 0, 5)
+								e:SetPoint("BOTTOM", lineHeight, 0, -5)
+								e:SetPoint("RIGHT", line, -10, 0)
+								e:SetFont("Fonts\\FRIZQT__.TTF", 25, "OUTLINE")
+								e:SetTextColor(0.0, 0.5, 0.5, 1)
+
+								e.texture = e:CreateTexture(nil, "BACKGROUND")
+								e.texture:SetTexture(0, 0, 0, 1)
+								e.texture:SetAllPoints()
+
+								e:SetMultiLine(true)
+								e:SetMaxLetters(100)
+								e:SetAutoFocus(false)
+
+								do -- Scripts
+									e:SetScript("OnEscapePressed", function(self)
+										e:ClearFocus()
+									end)
+
+									e:SetScript("OnEnterPressed", function(self)
+										e:ClearFocus()
+									end)
+
+									e:SetScript("OnEditFocusLost", function(self)
+										local string = self:GetText():trim()
+
+										dropDown.input.lineHeight = nil
+
+										if string ~= "" then
+											local num = string:match("(%d+)")
+											local num = tonumber(num)
+
+											if num then
+												dropDown.input.lineHeight = num
+											else
+												self:SetText(nil)
+											end
+										end
+
+										addListEntry(dropDown.input)
+									end)
+								end
+
+								line.editBox2 = e
+							end
+
+							dropDown.line = line
+						end
+
+						height = height + ID:GetHeight() + 3
+						height = height + currentSpell:GetHeight() + 3
+						height = height + index:GetHeight() + 3
+						height = height + line:GetHeight() + 3
+
+						dropDown:SetHeight(height + 3)
+						expander:SetHeight(dropDown:GetHeight() + self:GetHeight())
+					end
+				end
 			elseif category == "rune" then
 				if not scroll.rune then
 					function scroll:rune()
@@ -3317,7 +4185,8 @@ function SlashCmdList.Timeline(msg, editbox)
 	if direction then direction = direction:lower() end
 	-- local command, rest = msg:match("^(%S*)%s*(.-)$"):lower()
 	local command = msg:match("^(%S*)"):lower()
-	local rest = msg:match("^%S* (.+)$"):lower()
+	local rest = (msg or ""):match("^%S* (.+)$")
+  if rest then rest = rest:lower() end
 
 	debug(msg, command, rest)
 
