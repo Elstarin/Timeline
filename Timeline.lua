@@ -254,12 +254,12 @@ elseif CLASS == "PALADIN" then
 			}
 			-- list[4] = {
 			-- 	name = "Cast Bar",
-			-- 	category = "castbar",
+			-- 	category = "activity",
 			-- 	marks = {2, 3},
 			-- }
 			list[5] = {
 				name = "Cast Bar Negative",
-				category = "castbarnegative",
+				category = "inactivity",
 				marks = {2, 3},
 			}
     elseif specName == "Protection" then
@@ -372,16 +372,16 @@ TL.categories = { -- NOTE: Make sure to add any new category to the index below
 	cooldown = {},
 	buff = {},
 	debuff = {},
-	castbar = {},
-  castbarnegative = {},
+	activity = {},
+  inactivity = {},
 	rune = {},
 }
 TL.indexedCategories = {
 	"cooldown",
 	"buff",
 	"debuff",
-	"castbar",
-  "castbarnegative",
+	"activity",
+  "inactivity",
 	"rune",
 }
 --------------------------------------------------------------------------------
@@ -504,11 +504,17 @@ function TL.SPELL_AURA_REMOVED(time, _, _, srcGUID, srcName, _, _, dstGUID, dstN
 
 	if auraType == "BUFF" then
 		if TL.categories.buff[spellID] then
-			TL.categories.buff[spellID].slide:Stop()
+      local spell = TL.categories.buff[spellID]
+      local index = spell.index
+      spell.icon:SetPoint("RIGHT", TL, "TOPLEFT", 0, -((index - 1) * ICON_HEIGHT))
+      if spell.icon.ticker then spell.icon.ticker:Cancel() end
 		end
 	elseif auraType == "DEBUFF" then
 		if TL.categories.debuff[spellID] then
-			TL.categories.buff[spellID].slide:Stop()
+      local spell = TL.categories.debuff[spellID]
+      local index = spell.index
+      spell.icon:SetPoint("RIGHT", TL, "TOPLEFT", 0, -((index - 1) * ICON_HEIGHT))
+      if spell.icon.ticker then spell.icon.ticker:Cancel() end
 		end
 	end
 end
@@ -518,17 +524,17 @@ function TL.SPELL_CAST_START(time, event, _, srcGUID, srcName, _, _, dstGUID, ds
 
   TL.casting = true
 
-	if TL.categories.castbar[1] then
-		for i = 1, #TL.categories.castbar do
-      local spell = TL.categories.castbar[i]
+	if TL.categories.activity[1] then
+		for i = 1, #TL.categories.activity do
+      local spell = TL.categories.activity[i]
 
 			spell:update()
 		end
 	end
 
-	if TL.categories.castbarnegative[1] then
-		for i = 1, #TL.categories.castbarnegative do
-      local spell = TL.categories.castbarnegative[i]
+	if TL.categories.inactivity[1] then
+		for i = 1, #TL.categories.inactivity do
+      local spell = TL.categories.inactivity[i]
 
 			spell:update()
 		end
@@ -540,9 +546,9 @@ function TL.UNIT_SPELLCAST_STOP(unitID, spellName, rank, lineID, spellID)
 
   TL.casting = false
 
-  -- if TL.categories.castbar[1] then
-  --   for i = 1, #TL.categories.castbar do
-  --     local spell = TL.categories.castbar[i]
+  -- if TL.categories.activity[1] then
+  --   for i = 1, #TL.categories.activity do
+  --     local spell = TL.categories.activity[i]
   --     local icon1 = spell.icon[1]
   --     local icon2 = spell.icon[2]
   --
@@ -579,17 +585,17 @@ function TL.UNIT_SPELLCAST_SUCCEEDED(unitID, spellName, rank, lineID, spellID)
     local startGCD, GCD = GetSpellCooldown(61304)
 
     if startGCD > 0 then -- Make sure it's on the GCD
-      if TL.categories.castbar[1] then
-        for i = 1, #TL.categories.castbar do
-          local spell = TL.categories.castbar[i]
+      if TL.categories.activity[1] then
+        for i = 1, #TL.categories.activity do
+          local spell = TL.categories.activity[i]
 
           spell:update(0.82, 0.35, 0.09, 1.0) -- Make it orange since it's a GCD
         end
       end
 
-      if TL.categories.castbarnegative[1] then
-        for i = 1, #TL.categories.castbarnegative do
-          local spell = TL.categories.castbarnegative[i]
+      if TL.categories.inactivity[1] then
+        for i = 1, #TL.categories.inactivity do
+          local spell = TL.categories.inactivity[i]
 
           spell:update(0.82, 0.35, 0.09, 1.0) -- Make it orange since it's a GCD
         end
@@ -654,9 +660,9 @@ function TL.RUNE_POWER_UPDATE(runeNum)
 	local startGCD, GCD = GetSpellCooldown(61304)
 
 	if startGCD > 0 then
-		if TL.categories.castbar[1] then
-			for i = 1, #TL.categories.castbar do
-				TL.categories.castbar[i]:update()
+		if TL.categories.activity[1] then
+			for i = 1, #TL.categories.activity do
+				TL.categories.activity[i]:update()
 			end
 		end
 	end
@@ -848,7 +854,7 @@ do -- Create list frame type functions
                 if icon.line then icon.line:Hide() end
                 if icon.text then icon.text:Hide() end
 
-                if category == "castbar" then icon:Hide() end
+                if category == "activity" then icon:Hide() end
               end)
 
               icon.slide = slide
@@ -913,7 +919,7 @@ do -- Create list frame type functions
                 if icon.line then icon.line:Hide() end
                 if icon.text then icon.text:Hide() end
 
-                if category == "castbar" then icon:Hide() end
+                if category == "activity" then icon:Hide() end
               end)
 
               icon.slide = slide
@@ -978,7 +984,7 @@ do -- Create list frame type functions
                 if icon.line then icon.line:Hide() end
                 if icon.text then icon.text:Hide() end
 
-                if category == "castbar" then icon:Hide() end
+                if category == "activity" then icon:Hide() end
               end)
 
               icon.slide = slide
@@ -1011,9 +1017,9 @@ do -- Create list frame type functions
           return icon, slide, text, line
         end
       end
-    elseif category == "castbar" then
-      if not funcs.castbar then
-        function funcs.castbar(i, spell, list, spellID, spellName, unit)
+    elseif category == "activity" then
+      if not funcs.activity then
+        function funcs.activity(i, spell, list, spellID, spellName, unit)
           spell.icon = {}
 
           for index = 1, 2 do
@@ -1048,7 +1054,7 @@ do -- Create list frame type functions
                   if icon.line then icon.line:Hide() end
                   if icon.text then icon.text:Hide() end
 
-                  if category == "castbar" then icon:Hide() end
+                  if category == "activity" then icon:Hide() end
                 end)
 
                 icon.slide = slide
@@ -1085,9 +1091,9 @@ do -- Create list frame type functions
           return spell.icon, slide, text, line
         end
       end
-    elseif category == "castbarnegative" then
-      if not funcs.castbarnegative then
-        function funcs.castbarnegative(i, spell, list, spellID, spellName, unit)
+    elseif category == "inactivity" then
+      if not funcs.inactivity then
+        function funcs.inactivity(i, spell, list, spellID, spellName, unit)
           spell.icon = {}
           spell.icon.filling = {}
 
@@ -1133,9 +1139,9 @@ do -- Create list frame type functions
                   if icon.line then icon.line:Hide() end
                   if icon.text then icon.text:Hide() end
 
-                  if category == "castbar" then
+                  if category == "activity" then
                     icon:Hide()
-                  elseif category == "castbarnegative" then
+                  elseif category == "inactivity" then
                     icon:Hide()
                     icon.fill:Hide()
                   end
@@ -1209,6 +1215,8 @@ function TL.loadList(specName)
         spell.icon, spell.slide, spell.text, spell.line = TL.categoryFuncs[category](i, spell, list, spellID, spellName, unit)
       end
 
+      spell.index = i
+
       local icon, slide, text, line = spell.icon, spell.slide, spell.text, spell.line
 
 			if category then
@@ -1231,41 +1239,23 @@ function TL.loadList(specName)
 							local x = (frameWidth * remaining) / TOTAL_TIME
 
 							if duration ~= GCD then
-								-- if not slide:IsPlaying() then
-								-- 	if remaining >= TOTAL_TIME then
-								-- 		local delay = remaining - TOTAL_TIME
-								-- 		slide[2]:SetStartDelay(remaining - TOTAL_TIME)
-								-- 		slide[2]:SetDuration(remaining - delay)
-								-- 	else
-								-- 		slide[2]:SetStartDelay(0)
-								-- 		slide[2]:SetDuration(remaining)
-								-- 	end
-                --
-								-- 	slide[1]:SetDuration(0.001)
-                --
-								-- 	slide[1]:SetOffset(x, 0)
-								-- 	slide[2]:SetOffset(-x, 0)
-                --
-								-- 	if slide:IsPlaying() then slide:Stop() end
-								-- 	slide:Play()
-                --
-								-- 	if icon.line then
-								-- 		icon.line:Show()
-								-- 	end
-                --
-								-- 	if icon.text then
-								-- 		icon.text:Show()
-								-- 	end
-								-- end
-
                 do -- Creates the ticker
                   local frameWidth = TL:GetWidth()
                   local x = (frameWidth * remaining) / TOTAL_TIME
                   local right = UIParent:GetRight()
                   local edge = right - TL.line:GetRight()
-                  icon:SetPoint("RIGHT", TL, "TOPLEFT", edge, -((i - 1) * ICON_HEIGHT))
+                  if x > edge then
+                    icon:SetPoint("RIGHT", TL, "TOPLEFT", edge, -((i - 1) * ICON_HEIGHT))
+                  else
+                    icon:SetPoint("RIGHT", TL, "TOPLEFT", x, -((i - 1) * ICON_HEIGHT))
+                  end
 
-                  newTicker(0.001, function(ticker)
+                  if icon.ticker then
+                    icon.ticker:Cancel()
+                    icon.ticker = nil
+                  end
+
+                  icon.ticker = newTicker(0.001, function(ticker)
                     local remaining = total - GetTime()
                     local x = (frameWidth * remaining) / TOTAL_TIME
 
@@ -1295,11 +1285,11 @@ function TL.loadList(specName)
 					function spell:update()
 						local cTime = GetTime()
 
-						local name, _, icon, count, dispel, duration, expires, caster, steal, consolidated, ID, canApply, bossDebuff, v1, v2, v3, index
+						local name, _, spellIcon, count, dispel, duration, expires, caster, steal, consolidated, ID, canApply, bossDebuff, v1, v2, v3, index
 
 						while true do
 							index = (index or 0) + 1
-							name, _, icon, count, dispel, duration, expires, caster, steal, consolidated, ID, canApply, bossDebuff, v1, v2, v3 = UnitBuff(unit, index)
+							name, _, spellIcon, count, dispel, duration, expires, caster, steal, consolidated, ID, canApply, bossDebuff, v1, v2, v3 = UnitBuff(unit, index)
 
 							if (ID == spellID) or (spellName == name) then -- Found a match
 								break
@@ -1309,37 +1299,43 @@ function TL.loadList(specName)
 						end
 
 						local remaining = expires - cTime
+            local total = expires
 
-						do -- Handles updating the bar's width
-							local frameWidth = TL:GetWidth()
+            do -- Creates the ticker
+              local frameWidth = TL:GetWidth()
+              local x = (frameWidth * remaining) / TOTAL_TIME
+              local edge = UIParent:GetRight() - TL.line:GetRight()
+              if x > edge then
+                icon:SetPoint("RIGHT", TL, "TOPLEFT", edge, -((i - 1) * ICON_HEIGHT))
+              else
+                icon:SetPoint("RIGHT", TL, "TOPLEFT", x, -((i - 1) * ICON_HEIGHT))
+              end
 
-							local x = (frameWidth * remaining) / TOTAL_TIME
+              if icon.ticker then
+                icon.ticker:Cancel()
+                icon.ticker = nil
+              end
 
-							if remaining >= TOTAL_TIME then
-								local delay = remaining - TOTAL_TIME
-								slide[2]:SetStartDelay(remaining - TOTAL_TIME)
-								slide[2]:SetDuration(remaining - delay)
-							else
-								slide[2]:SetStartDelay(0)
-								slide[2]:SetDuration(remaining)
-							end
+              icon.ticker = newTicker(0.001, function(ticker)
+                local remaining = total - GetTime()
+                local x = (frameWidth * remaining) / TOTAL_TIME
 
-							slide[1]:SetDuration(0.001)
+                if edge > x then
+                  if 0 >= x then
+                    x = 0
+                    ticker:Cancel()
 
-							slide[1]:SetOffset(x, 0)
-							slide[2]:SetOffset(-x, 0)
+                    if icon.line then icon.line:Hide() end
+                    if icon.text then icon.text:Hide() end
+                  end
 
-							if slide:IsPlaying() then slide:Stop() end
-							slide:Play()
+                  icon:SetPoint("RIGHT", TL, "TOPLEFT", x, -((i - 1) * ICON_HEIGHT))
+                end
+              end)
+            end
 
-							if icon.line then
-								icon.line:Show()
-							end
-
-							if icon.text then
-								icon.text:Show()
-							end
-						end
+            if icon.line then icon.line:Show() end
+            if icon.text then icon.text:Show() end
 					end
 				elseif category == "debuff" then
 					function spell:update()
@@ -1389,7 +1385,7 @@ function TL.loadList(specName)
 							end
 						end
 					end
-				elseif category == "castbar" then
+				elseif category == "activity" then
           local count = 1
 
 					function spell:update(c1, c2, c3, c4)
@@ -1471,7 +1467,7 @@ function TL.loadList(specName)
 							end
 						end
 					end
-				elseif category == "castbarnegative" then
+				elseif category == "inactivity" then
           local count = 0
           local hiddenLines = {}
 
@@ -3079,9 +3075,9 @@ function TL.createOptionsFrame()
 						expander:SetHeight(dropDown:GetHeight() + self:GetHeight())
 					end
 				end
-			elseif category == "castbar" then
-				if not scroll.castbar then
-					function scroll:castbar()
+			elseif category == "activity" then
+				if not scroll.activity then
+					function scroll:activity()
 						local height = 0
 						local dropDown = self.dropDown
 						local expander = self.expander
@@ -3441,9 +3437,9 @@ function TL.createOptionsFrame()
 						expander:SetHeight(dropDown:GetHeight() + self:GetHeight())
 					end
 				end
-			elseif category == "castbarnegative" then
-				if not scroll.castbarnegative then
-					function scroll:castbarnegative()
+			elseif category == "inactivity" then
+				if not scroll.inactivity then
+					function scroll:inactivity()
 						local height = 0
 						local dropDown = self.dropDown
 						local expander = self.expander
