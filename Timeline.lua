@@ -81,7 +81,9 @@ local ICON_HEIGHT = 30 -- Default 10
 local TOTAL_TIME = 30 -- Default 60 (Total amount of time for the timeline in seconds)
 
 local TEXT_HEIGHT = 16 -- Default 16
+local STACK_TEXT_HEIGHT = 20 -- Default 20
 local TEXT_COLOR = {0.93, 0.86, 0.01, 1.0} -- Default 0.93, 0.86, 0.01, 1.0
+local STACK_TEXT_COLOR = {0.93, 0.86, 0.01, 1.0} -- Default 0.93, 0.86, 0.01, 1.0
 local NUMBER_OF_DECIMALS = 0 -- Default 0
 
 if CLASS == "DEATHKNIGHT" then
@@ -275,6 +277,16 @@ elseif CLASS == "SHAMAN" then
         name = "Earthquake",
         category = "cooldown",
       }
+      list[1] = {
+        ID = 324,
+        name = "Lightning Shield",
+        category = "buff",
+      }
+      list[2] = {
+        -- ID = 324,
+        name = "Unleash Flame",
+        category = "buff",
+      }
     elseif specName == "Restoration" then
 
     end
@@ -440,13 +452,15 @@ function TL.SPELL_AURA_APPLIED(time, _, _, srcGUID, srcName, srcFlags, _, dstGUI
 	if srcName ~= pName then return end
 
 	if auraType == "BUFF" then
-		if TL.categories.buff[spellID] then
-			TL.categories.buff[spellID]:update()
+    local aura = TL.categories.buff[spellID]
+		if aura then
+			aura:update()
 		end
 	elseif auraType == "DEBUFF" then
-		if TL.categories.debuff[spellID] then
-			TL.categories.debuff[spellID]:update()
-		end
+    local aura = TL.categories.debuff[spellID]
+    if aura then
+      aura:update()
+    end
 	end
 end
 
@@ -467,21 +481,20 @@ end
 function TL.SPELL_AURA_REMOVED(time, _, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, auraType, amount)
 	if srcName ~= pName then return end
 
-	if auraType == "BUFF" then
-		if TL.categories.buff[spellID] then
-      local spell = TL.categories.buff[spellID]
-      local index = spell.index
-      spell.icon:SetPoint("RIGHT", TL, "TOPLEFT", 0, -((index - 1) * ICON_HEIGHT))
-      if spell.icon.ticker then spell.icon.ticker:Cancel() end
-		end
-	elseif auraType == "DEBUFF" then
-		if TL.categories.debuff[spellID] then
-      local spell = TL.categories.debuff[spellID]
-      local index = spell.index
-      spell.icon:SetPoint("RIGHT", TL, "TOPLEFT", 0, -((index - 1) * ICON_HEIGHT))
-      if spell.icon.ticker then spell.icon.ticker:Cancel() end
-		end
-	end
+  local aura
+  if auraType == "BUFF" then
+    aura = TL.categories.buff[spellID]
+  elseif auraType == "DEBUFF" then
+    aura = TL.categories.debuff[spellID]
+  end
+
+  if aura and aura.icon then
+    aura.icon:SetPoint("RIGHT", TL.line, 0, 0)
+
+    if aura.icon.ticker then
+      aura.icon.ticker:Cancel()
+    end
+  end
 end
 
 function TL.SPELL_CAST_START(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school)
@@ -541,8 +554,10 @@ function TL.UNIT_SPELLCAST_SUCCEEDED(unitID, spellName, rank, lineID, spellID)
 	if unitID ~= "player" then return end
 
 	if TL.categories.cooldown[spellID] then
+    local spell = TL.categories.cooldown[spellID]
+    -- spell.charges = false
 		-- TL.categories.cooldown[spellID]:update()
-    after(0.005, TL.categories.cooldown[spellID].update) -- Give the spell cooldown some time to update
+    after(0.005, spell.update) -- Give the spell cooldown some time to update
 	end
 
   if TL.casting then -- It was a hard cast that finished
@@ -778,6 +793,16 @@ do -- Create list frame type functions
               icon.text = text
             end
 
+            local stackText = icon.stackText
+            if index == 2 and not stackText then
+              stackText = icon:CreateFontString(nil, "OVERLAY")
+              stackText:SetPoint("CENTER", icon, 0, 0)
+              stackText:SetFont("Fonts\\FRIZQT__.TTF", STACK_TEXT_HEIGHT or TEXT_HEIGHT, "OUTLINE")
+              stackText:SetTextColor(unpack(STACK_TEXT_COLOR or TEXT_COLOR))
+
+              icon.stackText = stackText
+            end
+
             local line = icon.line
             if list.line and not line then
               line = icon:CreateTexture(nil, "ARTWORK")
@@ -803,7 +828,8 @@ do -- Create list frame type functions
           icon = spell.icon
           if not icon then
             icon = CreateFrame("Frame", "Timeline_Icon_" .. i, TL)
-            icon:SetPoint("RIGHT", TL, "TOPLEFT", 0, -((i - 1) * ICON_HEIGHT))
+            icon:SetPoint("TOP", TL, 0, -((i - 1) * ICON_HEIGHT))
+            icon:SetPoint("RIGHT", TL.line, 0, 0)
             icon:SetSize(ICON_HEIGHT - 2, ICON_HEIGHT - 2)
 
             local texture = GetSpellTexture(spellID or spellName)
@@ -868,7 +894,8 @@ do -- Create list frame type functions
           icon = spell.icon
           if not icon then
             icon = CreateFrame("Frame", "Timeline_Icon_" .. i, TL)
-            icon:SetPoint("RIGHT", TL, "TOPLEFT", 0, -((i - 1) * ICON_HEIGHT))
+            icon:SetPoint("TOP", TL, 0, -((i - 1) * ICON_HEIGHT))
+            icon:SetPoint("RIGHT", TL.line, 0, 0)
             icon:SetSize(ICON_HEIGHT - 2, ICON_HEIGHT - 2)
 
             local texture = GetSpellTexture(spellID or spellName)
@@ -936,6 +963,8 @@ do -- Create list frame type functions
             icon = spell.icon[index]
             if not icon then
               icon = CreateFrame("Frame", "Timeline_Icon_" .. i .. "_" .. index, TL)
+              -- icon:SetPoint("TOP", TL, 0, -((i - 1) * ICON_HEIGHT))
+              -- icon:SetPoint("RIGHT", TL.line, 0, 0)
               icon:SetPoint("RIGHT", TL, "TOPLEFT", 0, -((i - 1) * ICON_HEIGHT))
               icon:SetSize(ICON_HEIGHT - 2, ICON_HEIGHT - 2)
 
@@ -1011,6 +1040,8 @@ do -- Create list frame type functions
             icon = spell.icon[index]
             if not icon then
               icon = CreateFrame("Frame", "Timeline_Icon_" .. i .. "_" .. index, TL)
+              -- icon:SetPoint("TOP", TL, 0, -((i - 1) * ICON_HEIGHT))
+              -- icon:SetPoint("RIGHT", TL.line, 0, 0)
               icon:SetPoint("RIGHT", TL, "TOPLEFT", 0, -((i - 1) * ICON_HEIGHT))
               icon:SetSize(ICON_HEIGHT - 2, ICON_HEIGHT - 2)
 
@@ -1242,87 +1273,78 @@ function TL.loadList(specName)
 
 				if category == "cooldown" then
           local icon = spell.icon[1]
-          local count = 1
-          -- count = count + 1
-          -- local mod = (count % 2) + 1
+          local icon1 = spell.icon[1]
+          local icon2 = spell.icon[2]
+          icon2:Hide()
 
 					function spell:update()
-            local icon = spell.icon[1]
-            local offset = 0
+            local frameWidth = TL:GetWidth()
+            local edge = UIParent:GetRight() - TL.line:GetRight()
 
             local charges, chargeMax, start, duration = GetSpellCharges(spellID)
 
-            if not charges then
-              start, duration = GetSpellCooldown(spellID)
+            if charges and chargeMax > charges then
+              icon1:Show()
+              icon2:Show()
+
+              icon2.stackText:SetText(charges)
             else
-              if (chargeMax - 1) == charges then -- Missing one charge
-                icon = spell.icon[1]
-              else
-                offset = ICON_HEIGHT
-                icon = spell.icon[2]
-              end
+              icon1:Show()
+              icon2:Hide() -- No charges, so keep the second icon hidden
+              start, duration = GetSpellCooldown(spellID) -- No charges, so go with the standard CD
             end
 
-            local remaining = (start + duration) - GetTime()
+            if not spell.charges then -- Handle the cooldown in here
+              if charges then
+                if charges < chargeMax and not spell.queued then
+                  spell.charges = true
+                end
 
-            local frameWidth = TL:GetWidth()
-            local x = (frameWidth * duration) / TOTAL_TIME
-            local edge = UIParent:GetRight() - TL.line:GetRight()
-            if x > edge then x = edge end
-
-            icon:SetPoint("RIGHT", TL.line, x + offset, 0)
-
-            if icon.remaining then
-              if icon == spell.icon[1] then
-                icon = spell.icon[2]
-              elseif icon == spell.icon[2] then
-                icon = spell.icon[1]
+                if charges > 0 then -- There is a charge at the ready, so icon should be by line
+                  spell.icon[2]:SetPoint("RIGHT", TL.line, ICON_HEIGHT, 0)
+                end
               end
-            end
 
-            if not spell.ticker then
-              spell.ticker = newTicker(0.001, function(ticker)
+              local icon = spell.icon[1]
+
+              local remaining = (start + duration) - GetTime()
+              local x = ((frameWidth * remaining) / TOTAL_TIME)
+              if x > edge then x = edge end
+              icon:SetPoint("RIGHT", TL.line, x, 0)
+
+              icon.ticker = newTicker(0.001, function(ticker)
                 local remaining = (start + duration) - GetTime()
                 local x = ((frameWidth * remaining) / TOTAL_TIME)
-                icon.remaining = remaining
+                if x > edge then x = edge end -- Icon is off screen, adjust it
 
                 if remaining <= 0 then
-                  charges, chargeMax, start, duration = GetSpellCharges(spellID)
+                  if icon.line then icon.line:Hide() end
+                  if icon.text then icon.text:Hide() end
 
-                  if chargeMax > charges then
-                    if icon == spell.icon[1] then
-                      icon = spell.icon[2]
-                      offset = ICON_HEIGHT
-                    elseif icon == spell.icon[2] then
-                      icon = spell.icon[1]
-                    end
+                  ticker:Cancel()
+                  icon.ticker = nil
 
-                    if (chargeMax - 1) == charges then -- Missing one charge
-                      offset = 0
-                    else
-                      offset = ICON_HEIGHT
-                    end
-
-                    remaining = (start + duration) - GetTime()
-                    x = ((frameWidth * remaining) / TOTAL_TIME)
-
-                    debug("Extending ticker and switching icon")
-                  else
-                    debug("Stopping ticker")
-
-                    if icon.line then icon.line:Hide() end
-                    if icon.text then icon.text:Hide() end
-
-                    ticker:Cancel()
-                    spell.ticker = nil
-                    icon.remaining = nil
+                  if spell.queued then -- There is at least one more charge on CD
+                    spell.queued = false
+                    spell:update()
+                  else -- Shouldn't be any more charges
+                    icon2.stackText:SetText(chargeMax)
+                    spell.charges = false
                   end
                 end
 
-                if x > edge then x = edge end -- Icon is off screen, adjust it
-
-                icon:SetPoint("RIGHT", TL.line, x + offset, 0)
+                icon:SetPoint("RIGHT", TL.line, x, 0)
               end)
+            else
+              spell.queued = true
+              spell.charges = false
+
+              if charges and charges == 0 then -- No charges are available, so move the second icon to its max duration to wait
+                local x = (frameWidth * duration) / TOTAL_TIME
+                if x > edge then x = edge end
+
+                spell.icon[2]:SetPoint("RIGHT", TL.line, x, 0)
+              end
             end
 					end
 				elseif category == "buff" then
@@ -1331,7 +1353,7 @@ function TL.loadList(specName)
 
 						local name, _, spellIcon, count, dispel, duration, expires, caster, steal, consolidated, ID, canApply, bossDebuff, v1, v2, v3, index
 
-						while true do
+						while true do -- Find the buff (there are more efficient ways to do this, but I haven't found one I like. It seems unreliable...)
 							index = (index or 0) + 1
 							name, _, spellIcon, count, dispel, duration, expires, caster, steal, consolidated, ID, canApply, bossDebuff, v1, v2, v3 = UnitBuff(unit, index)
 
@@ -1349,11 +1371,9 @@ function TL.loadList(specName)
               local frameWidth = TL:GetWidth()
               local x = (frameWidth * remaining) / TOTAL_TIME
               local edge = UIParent:GetRight() - TL.line:GetRight()
-              if x > edge then
-                icon:SetPoint("RIGHT", TL, "TOPLEFT", edge, -((i - 1) * ICON_HEIGHT))
-              else
-                icon:SetPoint("RIGHT", TL, "TOPLEFT", x, -((i - 1) * ICON_HEIGHT))
-              end
+              if x > edge then x = edge end
+
+              icon:SetPoint("RIGHT", TL.line, x, 0)
 
               if icon.ticker then
                 icon.ticker:Cancel()
@@ -1368,12 +1388,13 @@ function TL.loadList(specName)
                   if 0 >= x then
                     x = 0
                     ticker:Cancel()
+                    icon.ticker = nil
 
                     if icon.line then icon.line:Hide() end
                     if icon.text then icon.text:Hide() end
                   end
 
-                  icon:SetPoint("RIGHT", TL, "TOPLEFT", x, -((i - 1) * ICON_HEIGHT))
+                  icon:SetPoint("RIGHT", TL.line, x, 0)
                 end
               end)
             end
@@ -1387,7 +1408,7 @@ function TL.loadList(specName)
 
 						local name, _, icon, count, dispel, duration, expires, caster, steal, consolidated, ID, canApply, bossDebuff, v1, v2, v3, index
 
-						while true do
+						while true do -- Find the debuff (there are more efficient ways to do this, but I haven't found one I like. It seems unreliable...)
 							index = (index or 0) + 1
 							name, _, icon, count, dispel, duration, expires, caster, steal, consolidated, ID, canApply, bossDebuff, v1, v2, v3 = UnitDebuff(unit, index)
 
@@ -1398,36 +1419,43 @@ function TL.loadList(specName)
 							end
 						end
 
-						local remaining = expires - cTime
+            local remaining = expires - cTime
+            local total = expires
 
-						do -- Handles updating the bar's width
-							local x = (TL:GetWidth() * remaining) / TOTAL_TIME
+            do -- Creates the ticker
+              local frameWidth = TL:GetWidth()
+              local x = (frameWidth * remaining) / TOTAL_TIME
+              local edge = UIParent:GetRight() - TL.line:GetRight()
+              if x > edge then x = edge end
 
-							if remaining >= TOTAL_TIME then
-								local delay = remaining - TOTAL_TIME
-								slide[2]:SetStartDelay(remaining - TOTAL_TIME)
-								slide[2]:SetDuration(remaining - delay)
-							else
-								slide[2]:SetStartDelay(0)
-								slide[2]:SetDuration(remaining)
-							end
+              icon:SetPoint("RIGHT", TL.line, x, 0)
 
-							slide[1]:SetDuration(0.001)
+              if icon.ticker then
+                icon.ticker:Cancel()
+                icon.ticker = nil
+              end
 
-							slide[1]:SetOffset(x, 0)
-							slide[2]:SetOffset(-x, 0)
+              icon.ticker = newTicker(0.001, function(ticker)
+                local remaining = total - GetTime()
+                local x = (frameWidth * remaining) / TOTAL_TIME
 
-							if slide:IsPlaying() then slide:Stop() end
-							slide:Play()
+                if edge > x then
+                  if 0 >= x then
+                    x = 0
+                    ticker:Cancel()
+                    icon.ticker = nil
 
-							if icon.line then
-								icon.line:Show()
-							end
+                    if icon.line then icon.line:Hide() end
+                    if icon.text then icon.text:Hide() end
+                  end
 
-							if icon.text then
-								icon.text:Show()
-							end
-						end
+                  icon:SetPoint("RIGHT", TL.line, x, 0)
+                end
+              end)
+            end
+
+            if icon.line then icon.line:Show() end
+            if icon.text then icon.text:Show() end
 					end
 				elseif category == "activity" then
           local count = 1
@@ -4336,4 +4364,86 @@ function SlashCmdList.Timeline(msg, editbox)
 		TL:ClearAllPoints()
 		TL:SetPoint(p1, p2, p3, p4, p5 + tonumber(offSet))
 	end
+end
+
+local function COOLDOWN_UPDATE_BACKUP()
+  local icon = spell.icon[1]
+  local offset = 0
+
+  local charges, chargeMax, start, duration = GetSpellCharges(spellID)
+
+  if not charges then
+    start, duration = GetSpellCooldown(spellID)
+  else
+    if (chargeMax - 1) == charges then -- Missing one charge
+      icon = spell.icon[1]
+    else
+      offset = ICON_HEIGHT
+      icon = spell.icon[2]
+    end
+  end
+
+  local remaining = (start + duration) - GetTime()
+
+  local frameWidth = TL:GetWidth()
+  local x = (frameWidth * duration) / TOTAL_TIME
+  local edge = UIParent:GetRight() - TL.line:GetRight()
+  if x > edge then x = edge end
+
+  icon:SetPoint("RIGHT", TL.line, x + offset, 0)
+
+  if icon.active then -- If the current icon is active, switch to the other one
+    if icon == spell.icon[1] then
+      icon = spell.icon[2]
+    elseif icon == spell.icon[2] then
+      icon = spell.icon[1]
+    end
+  end
+
+  if not spell.ticker then
+    spell.ticker = newTicker(0.001, function(ticker)
+      local remaining = (start + duration) - GetTime()
+      local x = ((frameWidth * remaining) / TOTAL_TIME)
+      icon.remaining = remaining
+      icon.active = true
+
+      if remaining <= 0 then
+        charges, chargeMax, start, duration = GetSpellCharges(spellID)
+
+        if chargeMax > charges then
+          if icon == spell.icon[1] then
+            icon = spell.icon[2]
+            offset = ICON_HEIGHT
+          elseif icon == spell.icon[2] then
+            icon = spell.icon[1]
+          end
+
+          if (chargeMax - 1) == charges then -- Missing one charge
+            offset = 0
+          else
+            offset = ICON_HEIGHT
+          end
+
+          remaining = (start + duration) - GetTime()
+          x = ((frameWidth * remaining) / TOTAL_TIME)
+
+          debug("Extending ticker and switching icon")
+        else
+          debug("Stopping ticker")
+
+          if icon.line then icon.line:Hide() end
+          if icon.text then icon.text:Hide() end
+
+          ticker:Cancel()
+          spell.ticker = nil
+          icon.remaining = nil
+          icon.active = false
+        end
+      end
+
+      if x > edge then x = edge end -- Icon is off screen, adjust it
+
+      icon:SetPoint("RIGHT", TL.line, x + offset, 0)
+    end)
+  end
 end
