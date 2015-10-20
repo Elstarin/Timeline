@@ -9,7 +9,7 @@ local classFunc
 --------------------------------------------------------------------------------
 -- Debug mode stuff
 --------------------------------------------------------------------------------
-local debugMode = false
+local debugMode = true
 do -- Debug mode stuff
   local matched
   local start = debugprofilestop() / 1000
@@ -78,7 +78,7 @@ local WIDTH = 800 -- Default 300
 
 local NUMBER_OF_ICONS = 10 -- Default 30
 local ICON_HEIGHT = 30 -- Default 10
-local TOTAL_TIME = 10 -- Default 60 (Total amount of time for the timeline in seconds)
+local TOTAL_TIME = 30 -- Default 60 (Total amount of time for the timeline in seconds)
 
 local TEXT_HEIGHT = 16 -- Default 16
 local TEXT_COLOR = {0.93, 0.86, 0.01, 1.0} -- Default 0.93, 0.86, 0.01, 1.0
@@ -86,71 +86,32 @@ local NUMBER_OF_DECIMALS = 0 -- Default 0
 
 if CLASS == "DEATHKNIGHT" then
   local function deathKnight(specName)
-		do -- Load the DK specific rune data
-			if not TL.runeIcons then
-				TL.runeIcons = {
-					"Interface\\PlayerFrame\\UI-PlayerFrame-Deathknight-Blood",
-					"Interface\\PlayerFrame\\UI-PlayerFrame-Deathknight-Unholy",
-					"Interface\\PlayerFrame\\UI-PlayerFrame-Deathknight-Frost",
-					"Interface\\PlayerFrame\\UI-PlayerFrame-Deathknight-Death",}
-			end
-
-			if not TL.partners then
-				TL.partners = {
-					[1] = 2,
-					[2] = 1,
-					[3] = 4,
-					[4] = 3,
-					[5] = 6,
-					[6] = 5
-				}
-			end
-
-			if not TL.runeTypes then
-				TL.runeTypes = {}
-				TL.runeTypes[1] = {
-					name = "Blood",
-					texture = "Interface\\PlayerFrame\\UI-PlayerFrame-Deathknight-Blood",
-					timer = 0,
-					duration = 10,
-					start = 0,
-					type = 1,
-					ready = true,
-				}
-				TL.runeTypes[2] = {
-					name = "Unholy",
-					texture = "Interface\\PlayerFrame\\UI-PlayerFrame-Deathknight-Unholy",
-					timer = 0,
-					duration = 10,
-					start = 0,
-					type = 2,
-					ready = true,
-				}
-				TL.runeTypes[3] = {
-					name = "Frost",
-					texture = "Interface\\PlayerFrame\\UI-PlayerFrame-Deathknight-Frost",
-					timer = 0,
-					duration = 10,
-					start = 0,
-					type = 3,
-					ready = true,
-				}
-				TL.runeTypes[4] = {
-					name = "Death",
-					texture = "Interface\\PlayerFrame\\UI-PlayerFrame-Deathknight-Death",
-					timer = 0,
-					duration = 10,
-					start = 0,
-					type = 4,
-					ready = true,
-				}
-			end
-		end
-
 		local list = {}
 
     if specName == "Blood" then
-
+      list[1] = {
+        ID = 1,
+        runeNums = {1, 2},
+        name = "Blood",
+        category = "rune",
+      }
+      list[2] = {
+        ID = 2,
+        runeNums = {3, 4},
+        name = "Unholy",
+        category = "rune",
+      }
+      list[3] = {
+        ID = 3,
+        runeNums = {5, 6},
+        name = "Frost",
+        category = "rune",
+      }
+      list[4] = {
+        ID = 48982,
+        name = "Blood Tap",
+        category = "cooldown",
+      }
     elseif specName == "Unholy" then
 
     elseif specName == "Frost" then
@@ -309,7 +270,11 @@ elseif CLASS == "SHAMAN" then
     if specName == "Enhancement" then
 
     elseif specName == "Elemental" then
-
+      list[4] = {
+        ID = 61882,
+        name = "Earthquake",
+        category = "cooldown",
+      }
     elseif specName == "Restoration" then
 
     end
@@ -576,7 +541,8 @@ function TL.UNIT_SPELLCAST_SUCCEEDED(unitID, spellName, rank, lineID, spellID)
 	if unitID ~= "player" then return end
 
 	if TL.categories.cooldown[spellID] then
-		TL.categories.cooldown[spellID]:update()
+		-- TL.categories.cooldown[spellID]:update()
+    after(0.005, TL.categories.cooldown[spellID].update) -- Give the spell cooldown some time to update
 	end
 
   if TL.casting then -- It was a hard cast that finished
@@ -604,68 +570,21 @@ function TL.UNIT_SPELLCAST_SUCCEEDED(unitID, spellName, rank, lineID, spellID)
   end
 end
 
-function TL.RUNE_POWER_UPDATE(runeNum)
-	local pStart, pDuration, pRuneReady = GetRuneCooldown(TL.partners[runeNum])
-	local start, duration, runeReady = GetRuneCooldown(runeNum)
-	local remaining = (start + duration) - GetTime()
+function TL.RUNE_POWER_UPDATE(runeNum) -- TODO: Set this up
+	local index = GetRuneType(runeNum)
 
-	local runeType = GetRuneType(runeNum)
-
-	local bar = bars[runeNum]
-	local data = types[runeType]
-
-	-- do -- Handle showing/hiding of icons
-	-- 	if (not runeReady and not pRuneReady) then -- Both are on CD
-	-- 		bar.icon[1]:Hide()
-	-- 		bar.icon[2]:Hide()
-	-- 	elseif (not runeReady) or (not pRuneReady) then -- One is on CD, one is usable
-	-- 		bar.icon[2]:Show()
-	-- 		bar.icon[1]:Hide()
-	-- 	else -- Both are usable
-	-- 		bar.icon[2]:Show()
-	-- 		bar.icon[1]:Show()
-	-- 	end
+	-- local bar = bars[runeNum]
+	-- local data = types[runeType]
+  --
+	-- if not runeReady and remaining < duration then -- Rune was already on CD, ignore
+	-- 	return -- debug("Remaining is lower than duration, returning.", runeNum)
+	-- elseif not runeReady then -- Start the cooldown
+  --
 	-- end
 
-	if not runeReady and remaining < duration then -- Rune was already on CD, ignore
-		return -- debug("Remaining is lower than duration, returning.", runeNum)
-	elseif not runeReady then -- Start the cooldown
-		if not runes[runeNum] then
-			runes[runeNum] = newTicker(0.001, function(ticker)
-				local start, duration, runeReady = GetRuneCooldown(runeNum)
-
-				if not runeReady then
-					local remaining = (start + duration) - GetTime()
-
-					if remaining <= duration and remaining > 0 then
-						bar:SetValue(remaining)
-						bar.icon[1]:SetPoint("LEFT", bar, remaining * 10, 0)
-						bar.line:SetPoint("LEFT", bar, remaining * 10, 0)
-						-- round(bar.text, remaining)
-					end
-				else
-					ticker:Cancel()
-					bar:SetValue(0) -- Make sure value is 0, that hides the bar
-					-- bar.text:SetText(nil) -- Remove text
-					runes[runeNum] = nil
-				end
-			end)
-		end
-	end
-
-	if TL.categories.cooldown[spellID] then
-		TL.categories.cooldown[spellID]:update()
-	end
-
-	local startGCD, GCD = GetSpellCooldown(61304)
-
-	if startGCD > 0 then
-		if TL.categories.activity[1] then
-			for i = 1, #TL.categories.activity do
-				TL.categories.activity[i]:update()
-			end
-		end
-	end
+  if TL.categories.rune[index] then
+    TL.categories.rune[index]:update(runeNum, TL.partners[runeNum], index)
+  end
 end
 
 function TL.RUNE_TYPE_UPDATE(runeNum)
@@ -825,42 +744,31 @@ do -- Create list frame type functions
     if category == "cooldown" then
       if not funcs.cooldown then
         function funcs.cooldown(i, spell, list, spellID, spellName, unit)
-          local icon, slide, text, line
+          spell.icon = {}
 
-          icon = spell.icon
-          if not icon then
-            icon = CreateFrame("Frame", "Timeline_Icon_" .. i, TL)
-            icon:SetPoint("RIGHT", TL, "TOPLEFT", 0, -((i - 1) * ICON_HEIGHT))
-            icon:SetSize(ICON_HEIGHT - 2, ICON_HEIGHT - 2)
+          for index = 1, 2 do
+            local icon = spell.icon[index]
+            if not icon then
+              icon = CreateFrame("Frame", "Timeline_Icon_" .. i .. "_" .. spellName, TL)
+              icon:SetPoint("TOP", TL, 0, -((i - 1) * ICON_HEIGHT))
+              if index == 1 then -- Left side
+                icon:SetPoint("RIGHT", TL.line, 0, 0)
+              else -- Right side
+                icon:SetPoint("RIGHT", TL.line, ICON_HEIGHT, 0)
+              end
+              icon:SetSize(ICON_HEIGHT - 2, ICON_HEIGHT - 2)
 
-            local texture = GetSpellTexture(spellID or spellName)
-            icon.texture = icon:CreateTexture(nil, "ARTWORK")
-            icon.texture:SetTexture(texture or 0, 0, 0.8, 1.0)
-            icon.texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-            icon.texture:SetAlpha(0.9)
-            icon.texture:SetAllPoints()
+              local texture = GetSpellTexture(list.ID or list.name)
+              icon.texture = icon:CreateTexture(nil, "ARTWORK")
+              icon.texture:SetTexture(texture or 0, 0, 0.8, 1.0)
+              icon.texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+              icon.texture:SetAlpha(0.9)
+              icon.texture:SetAllPoints()
 
-            slide = icon.slide
-            if not slide then -- Create animation
-              slide = icon:CreateAnimationGroup("SlideButtons")
-
-              slide[1] = slide:CreateAnimation("Translation")
-              slide[1]:SetOrder(1)
-
-              slide[2] = slide:CreateAnimation("Translation")
-              slide[2]:SetOrder(2)
-
-              slide:SetScript("OnFinished", function(self, requested)
-                if icon.line then icon.line:Hide() end
-                if icon.text then icon.text:Hide() end
-
-                if category == "activity" then icon:Hide() end
-              end)
-
-              icon.slide = slide
+              spell.icon[index] = icon
             end
 
-            text = icon.text
+            local text = icon.text
             if list.text and not text then
               text = icon:CreateFontString(nil, "OVERLAY")
               text:SetPoint("CENTER", icon, 0, 0)
@@ -870,7 +778,7 @@ do -- Create list frame type functions
               icon.text = text
             end
 
-            line = icon.line
+            local line = icon.line
             if list.line and not line then
               line = icon:CreateTexture(nil, "ARTWORK")
               line:SetTexture(1, 1, 1, 1)
@@ -884,7 +792,7 @@ do -- Create list frame type functions
             tinsert(TL.icons, icon)
           end
 
-          return icon, slide, text, line
+          return spell.icon, slide, text, line
         end
       end
     elseif category == "buff" then
@@ -1182,9 +1090,117 @@ do -- Create list frame type functions
         end
       end
     elseif category == "rune" then
+      do -- Load the DK specific rune data
+        if not TL.runeIcons then
+          TL.runeIcons = {
+            "Interface\\PlayerFrame\\UI-PlayerFrame-Deathknight-Blood",
+            "Interface\\PlayerFrame\\UI-PlayerFrame-Deathknight-Unholy",
+            "Interface\\PlayerFrame\\UI-PlayerFrame-Deathknight-Frost",
+            "Interface\\PlayerFrame\\UI-PlayerFrame-Deathknight-Death",}
+        end
+
+        if not TL.partners then
+          TL.partners = {
+            [1] = 2,
+            [2] = 1,
+            [3] = 4,
+            [4] = 3,
+            [5] = 6,
+            [6] = 5
+          }
+        end
+
+        if not TL.runeTypes then
+          TL.runeTypes = {}
+          TL.runeTypes[1] = {
+            name = "Blood",
+            texture = "Interface\\PlayerFrame\\UI-PlayerFrame-Deathknight-Blood",
+            timer = 0,
+            duration = 10,
+            start = 0,
+            type = 1,
+            ready = true,
+          }
+          TL.runeTypes[2] = {
+            name = "Unholy",
+            texture = "Interface\\PlayerFrame\\UI-PlayerFrame-Deathknight-Unholy",
+            timer = 0,
+            duration = 10,
+            start = 0,
+            type = 2,
+            ready = true,
+          }
+          TL.runeTypes[3] = {
+            name = "Frost",
+            texture = "Interface\\PlayerFrame\\UI-PlayerFrame-Deathknight-Frost",
+            timer = 0,
+            duration = 10,
+            start = 0,
+            type = 3,
+            ready = true,
+          }
+          TL.runeTypes[4] = {
+            name = "Death",
+            texture = "Interface\\PlayerFrame\\UI-PlayerFrame-Deathknight-Death",
+            timer = 0,
+            duration = 10,
+            start = 0,
+            type = 4,
+            ready = true,
+          }
+        end
+      end
+
       if not funcs.rune then
         function funcs.rune(i, spell, list, spellID, spellName, unit)
+          spell.icon = {}
+          local runeNums = list.runeNums
 
+          for index = runeNums[1], runeNums[2] do
+            local icon = spell.icon[index]
+            if not icon then
+              icon = CreateFrame("Frame", "Timeline_Icon_" .. i .. "_" .. spellName, TL)
+              icon:SetPoint("TOP", TL, 0, -((i - 1) * ICON_HEIGHT))
+              if index == runeNums[1] then -- Left side
+                icon:SetPoint("RIGHT", TL.line, 0, 0)
+              else -- Right side
+                icon:SetPoint("RIGHT", TL.line, ICON_HEIGHT, 0)
+              end
+              -- icon:SetPoint("RIGHT", TL, "TOPLEFT", 0, -((i - 1) * ICON_HEIGHT))
+              icon:SetSize(ICON_HEIGHT - 2, ICON_HEIGHT - 2)
+
+              icon.texture = icon:CreateTexture(nil, "ARTWORK")
+              icon.texture:SetTexture(TL.runeIcons[list.ID])
+              icon.texture:SetAllPoints()
+
+              spell.icon[index] = icon
+            end
+
+            local text = icon.text
+            if list.text and not text then
+              text = icon:CreateFontString(nil, "OVERLAY")
+              text:SetPoint("CENTER", icon, 0, 0)
+              text:SetFont("Fonts\\FRIZQT__.TTF", TEXT_HEIGHT, "OUTLINE")
+              text:SetTextColor(unpack(TEXT_COLOR))
+
+              icon.text = text
+            end
+
+            local line = icon.line
+            if list.line and not line then
+              line = icon:CreateTexture(nil, "ARTWORK")
+              line:SetTexture(1, 1, 1, 1)
+              line:SetSize(list.lineWidth or 1, list.lineHeight or UIParent:GetHeight())
+              line:SetPoint("RIGHT")
+              line:Hide()
+
+              icon.line = line
+            end
+
+            tinsert(TL.icons, icon)
+          end
+
+          return spell.icon, slide, text, line
         end
       end
     else
@@ -1225,61 +1241,89 @@ function TL.loadList(specName)
 				tinsert(TL.categories[category], spell)
 
 				if category == "cooldown" then
-					function spell:update(cTime, timer)
-						local cTime = cTime or GetTime()
+          local icon = spell.icon[1]
+          local count = 1
+          -- count = count + 1
+          -- local mod = (count % 2) + 1
 
-						local startGCD, GCD = GetSpellCooldown(61304)
-						local start, duration = GetSpellCooldown(spellID)
-						local remaining = (start + duration) - cTime
-            local total = start + duration
+					function spell:update()
+            local icon = spell.icon[1]
+            local offset = 0
 
-						do -- Handles updating the bar's width
-							local frameWidth = TL:GetWidth()
+            local charges, chargeMax, start, duration = GetSpellCharges(spellID)
 
-							local x = (frameWidth * remaining) / TOTAL_TIME
+            if not charges then
+              start, duration = GetSpellCooldown(spellID)
+            else
+              if (chargeMax - 1) == charges then -- Missing one charge
+                icon = spell.icon[1]
+              else
+                offset = ICON_HEIGHT
+                icon = spell.icon[2]
+              end
+            end
 
-							if duration ~= GCD then
-                do -- Creates the ticker
-                  local frameWidth = TL:GetWidth()
-                  local x = (frameWidth * remaining) / TOTAL_TIME
-                  local right = UIParent:GetRight()
-                  local edge = right - TL.line:GetRight()
-                  if x > edge then
-                    icon:SetPoint("RIGHT", TL, "TOPLEFT", edge, -((i - 1) * ICON_HEIGHT))
-                  else
-                    icon:SetPoint("RIGHT", TL, "TOPLEFT", x, -((i - 1) * ICON_HEIGHT))
-                  end
+            local remaining = (start + duration) - GetTime()
 
-                  if icon.ticker then
-                    icon.ticker:Cancel()
-                    icon.ticker = nil
-                  end
+            local frameWidth = TL:GetWidth()
+            local x = (frameWidth * duration) / TOTAL_TIME
+            local edge = UIParent:GetRight() - TL.line:GetRight()
+            if x > edge then x = edge end
 
-                  icon.ticker = newTicker(0.001, function(ticker)
-                    local remaining = total - GetTime()
-                    local x = (frameWidth * remaining) / TOTAL_TIME
+            icon:SetPoint("RIGHT", TL.line, x + offset, 0)
 
-                    if edge > x then
-                      if 0 >= x then
-                        x = 0
-                        ticker:Cancel()
+            if icon.remaining then
+              if icon == spell.icon[1] then
+                icon = spell.icon[2]
+              elseif icon == spell.icon[2] then
+                icon = spell.icon[1]
+              end
+            end
 
-                        if icon.line then icon.line:Hide() end
-                        if icon.text then icon.text:Hide() end
-                      end
+            if not spell.ticker then
+              spell.ticker = newTicker(0.001, function(ticker)
+                local remaining = (start + duration) - GetTime()
+                local x = ((frameWidth * remaining) / TOTAL_TIME)
+                icon.remaining = remaining
 
-                      icon:SetPoint("RIGHT", TL, "TOPLEFT", x, -((i - 1) * ICON_HEIGHT))
+                if remaining <= 0 then
+                  charges, chargeMax, start, duration = GetSpellCharges(spellID)
+
+                  if chargeMax > charges then
+                    if icon == spell.icon[1] then
+                      icon = spell.icon[2]
+                      offset = ICON_HEIGHT
+                    elseif icon == spell.icon[2] then
+                      icon = spell.icon[1]
                     end
-                  end)
+
+                    if (chargeMax - 1) == charges then -- Missing one charge
+                      offset = 0
+                    else
+                      offset = ICON_HEIGHT
+                    end
+
+                    remaining = (start + duration) - GetTime()
+                    x = ((frameWidth * remaining) / TOTAL_TIME)
+
+                    debug("Extending ticker and switching icon")
+                  else
+                    debug("Stopping ticker")
+
+                    if icon.line then icon.line:Hide() end
+                    if icon.text then icon.text:Hide() end
+
+                    ticker:Cancel()
+                    spell.ticker = nil
+                    icon.remaining = nil
+                  end
                 end
 
-                if icon.line then icon.line:Show() end
-                if icon.text then icon.text:Show() end
-							else
-								after(0.005, spell.update)
-								-- debug("Duration matches GCD, calling back in", 0.005, "seconds")
-							end
-						end
+                if x > edge then x = edge end -- Icon is off screen, adjust it
+
+                icon:SetPoint("RIGHT", TL.line, x + offset, 0)
+              end)
+            end
 					end
 				elseif category == "buff" then
 					function spell:update()
@@ -1546,7 +1590,69 @@ function TL.loadList(specName)
 						end
 					end
 				elseif category == "rune" then
+          function spell:update(runeNum, partnerNum, index)
+            local start, duration, runeReady = GetRuneCooldown(runeNum)
+            local remaining = (start + duration) - GetTime()
 
+            if not runeReady and remaining < duration then -- Rune was already on CD, ignore
+            	return -- debug("Remaining is lower than duration, returning.", runeNum)
+            elseif not runeReady then -- Start the cooldown
+              if icon.line then icon.line:Show() end
+              if icon.text then icon.text:Show() end
+
+              local rune = self.icon[runeNum]
+              local partner = self.icon[partnerNum]
+
+              local start, duration, runeReady = GetRuneCooldown(runeNum)
+              local pStart, pDuration, pRuneReady = GetRuneCooldown(partnerNum)
+
+              local cTime = GetTime()
+              local remaining = (start + duration) - cTime
+              if remaining > duration then remaining = duration end
+              if remaining < 0 then remaining = 0 end
+
+              local frameWidth = TL:GetWidth()
+              local x = (frameWidth * remaining) / TOTAL_TIME
+              local edge = UIParent:GetRight() - TL.line:GetRight()
+              if x > edge then x = edge end
+
+              rune:SetPoint("RIGHT", TL.line, x, 0)
+
+              if rune.ticker then
+                rune.ticker:Cancel()
+                rune.ticker = nil
+              end
+
+              rune.ticker = newTicker(0.001, function(ticker)
+                local start, duration, runeReady = GetRuneCooldown(runeNum)
+
+                if not runeReady and start > 0 then
+                  local remaining = (start + duration) - GetTime()
+                  if remaining > duration then remaining = duration end
+                  if remaining < 0 then remaining = 0 end
+
+                  rune.remaining = remaining
+
+                  local x = (frameWidth * remaining) / TOTAL_TIME
+
+                  if not pRuneReady and (partner.remaining or 0) <= remaining then -- Partner rune is not ready, AKA it's cooling down
+                    x = x + ICON_HEIGHT
+                  end
+                  if x > edge then x = edge end -- Icon is off screen, adjust it
+
+                  rune:SetPoint("RIGHT", TL.line, x, 0)
+                else
+                  -- debug("Stopping ticker")
+                  ticker:Cancel()
+                  rune.ticker = nil
+                  rune.remaining = 0
+
+                  if rune.line then rune.line:Hide() end
+                  if rune.text then rune.text:Hide() end
+                end
+              end)
+            end
+          end
 				end
 			end
 		end
