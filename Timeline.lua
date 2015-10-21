@@ -9,7 +9,7 @@ local classFunc
 --------------------------------------------------------------------------------
 -- Debug mode stuff
 --------------------------------------------------------------------------------
-local debugMode = true
+local debugMode = false
 do -- Debug mode stuff
   local matched
   local start = debugprofilestop() / 1000
@@ -87,7 +87,7 @@ local TEXT_HEIGHT = 16 -- Default 16
 local STACK_TEXT_HEIGHT = 20 -- Default 20
 local TEXT_COLOR = {0.93, 0.86, 0.01, 1.0} -- Default 0.93, 0.86, 0.01, 1.0
 local STACK_TEXT_COLOR = {0.93, 0.86, 0.01, 1.0} -- Default 0.93, 0.86, 0.01, 1.0
-local NUMBER_OF_DECIMALS = 0 -- Default 0
+local NUMBER_OF_DECIMALS = 1 -- Default 0
 
 if CLASS == "DEATHKNIGHT" then
   do -- If you aren't developing this addon, ignore all of this stuff that is in this block, it isn't part of the settings. Those are in the function below.
@@ -134,6 +134,7 @@ if CLASS == "DEATHKNIGHT" then
           local runeType = GetRuneType(i)
           rune.num = i
           rune.defaultType = runeType
+          rune.currentType = runeType
 
           rune.texture = rune:CreateTexture(nil, "ARTWORK")
           rune.texture:SetTexture(iconTextures[runeType])
@@ -157,18 +158,21 @@ if CLASS == "DEATHKNIGHT" then
     if specName == "Blood" then
       list[1] = {
         ID = 1,
+        text = true,
         runeNums = {1, 2},
         name = "Blood",
         category = "rune",
       }
       list[2] = {
         ID = 2,
+        text = true,
         runeNums = {3, 4},
         name = "Unholy",
         category = "rune",
       }
       list[3] = {
         ID = 3,
+        text = true,
         runeNums = {5, 6},
         name = "Frost",
         category = "rune",
@@ -177,6 +181,19 @@ if CLASS == "DEATHKNIGHT" then
         ID = 48982,
         name = "Blood Tap",
         category = "cooldown",
+      }
+      list[5] = {
+        name = "Path of Frost",
+        category = "buff",
+      }
+      list[6] = {
+        name = "Anti-Magic Shell",
+        category = "buff",
+      }
+      list[7] = {
+        name = "Death and Decay",
+        category = "cooldown",
+        line = true,
       }
     elseif specName == "Unholy" then
 
@@ -403,6 +420,8 @@ TL.line = UIParent:CreateTexture(nil, "OVERLAY")
 TL.line:SetTexture(1, 1, 1, 1)
 TL.line:SetSize(1, 1080)
 TL.line:SetPoint("LEFT", TL)
+TL.line:SetPoint("TOP", UIParent)
+TL.line:SetPoint("BOTTOM", UIParent)
 
 TL.bars = {}
 TL.icons = {}
@@ -439,39 +458,12 @@ local SetHeight, SetWidth, SetSize, GetWidth
 --------------------------------------------------------------------------------
 TL.active = {}
 TL:SetScript("OnUpdate", function(self, elapsed)
-	if TL.active then
-		local cTime = GetTime()
+	local cTime = GetTime()
+	local timer = (TL.combatStop or cTime) - (TL.combatStart or cTime)
 
-		local timer = (TL.combatStop or cTime) - (TL.combatStart or cTime)
-
-		-- if TL.updateList[1] then -- Make sure there is at least one
-		-- 	for i = 1, #TL.updateList do
-		-- 		if TL.updateList[i] then
-		-- 			TL.updateList[i]:update(cTime, timer)
-		-- 		end
-		-- 	end
-		-- end
-
-		-- if TL.forceUpdate or cTime >= (self.timeSinceLastUpdate or 0) then
-		-- 	debug("Update", timer)
-		--
-		-- 	local frameWidth = self:GetWidth()
-		--
-		-- 	for i = 1, NUMBER_OF_ICONS do
-		-- 		local bar = TL.bars[i]
-		-- 		local icon = bar.icon
-		--
-		-- 		local point = bar.point or random(1, TOTAL_TIME)
-		-- 		local x = (frameWidth * point) / TOTAL_TIME
-		--
-		-- 		bar:SetWidth(x)
-		-- 	end
-		--
-		-- 	self.timeSinceLastUpdate = cTime + 2.1
-		-- end
-	end
-
-	if TL.forceUpdate then TL.forceUpdate = false end
+  for icon, func in pairs(TL.active) do
+    if func then func() end
+  end
 end)
 --------------------------------------------------------------------------------
 -- Event handler
@@ -667,29 +659,27 @@ function TL.RUNE_POWER_UPDATE(runeNum)
   end
 end
 
-function TL.RUNE_TYPE_UPDATE(runeNum) -- TODO: Set this up
+function TL.RUNE_TYPE_UPDATE(runeNum)
 	local runeType = GetRuneType(runeNum)
 
-	-- local bar = bars[runeNum]
-	-- bar:SetStatusBarColor(unpack(BAR_COLOR[runeType]))
+  local rune = TL.runes[runeNum]
 
-	-- if TL.categories.cooldown[spellID] then
-	-- 	TL.categories.cooldown[spellID]:update()
-	-- end
+  if rune.currentType ~= runeType then -- Needs its texture updated
+    rune.texture:SetTexture(TL.runes.textureList[runeType])
+    rune.currentType = runeType
+  end
 end
 
 TL:SetScript("OnEvent", function(self, event, ...)
-	if TL.active then
-		if event == "COMBAT_LOG_EVENT_UNFILTERED" then
-			local _, event = ...
+	if event == "COMBAT_LOG_EVENT_UNFILTERED" then
+		local _, event = ...
 
-			if TL[event] then
-				return TL[event](...)
-			end
-		else
-			if TL[event] then
-				return TL[event](...)
-			end
+		if TL[event] then
+			return TL[event](...)
+		end
+	else
+		if TL[event] then
+			return TL[event](...)
 		end
 	end
 
@@ -869,11 +859,19 @@ do -- Create list frame type functions
             end
 
             local line = icon.line
-            if list.line and not line then
+            if index == 1 and list.line and not line then
               line = icon:CreateTexture(nil, "ARTWORK")
               line:SetTexture(1, 1, 1, 1)
-              line:SetSize(list.lineWidth or 1, list.lineHeight or UIParent:GetHeight())
+              line:SetWidth(list.lineWidth or 1)
               line:SetPoint("RIGHT")
+
+              if list.lineHeight then
+                line:SetHeight(list.lineHeight)
+              else
+                line:SetPoint("TOP", UIParent)
+                line:SetPoint("BOTTOM", UIParent)
+              end
+
               line:Hide()
 
               icon.line = line
@@ -1376,9 +1374,12 @@ function TL.loadList(specName)
               local remaining = (start + duration) - GetTime()
               local x = ((frameWidth * remaining) / TOTAL_TIME)
               if x > edge then x = edge end
-              icon:SetPoint("RIGHT", TL.line, x, 0)
 
-              icon.ticker = newTicker(0.001, function(ticker)
+              icon:SetPoint("RIGHT", TL.line, x, 0)
+              if icon.line then icon.line:Show() end
+              if icon.text then icon.text:Show() end
+
+              TL.active[icon] = function()
                 local remaining = (start + duration) - GetTime()
                 local x = ((frameWidth * remaining) / TOTAL_TIME)
                 if x > edge then x = edge end -- Icon is off screen, adjust it
@@ -1387,8 +1388,7 @@ function TL.loadList(specName)
                   if icon.line then icon.line:Hide() end
                   if icon.text then icon.text:Hide() end
 
-                  ticker:Cancel()
-                  icon.ticker = nil
+                  TL.active[icon] = nil
 
                   if spell.queued then -- There is at least one more charge on CD
                     spell.queued = false
@@ -1400,7 +1400,8 @@ function TL.loadList(specName)
                 end
 
                 icon:SetPoint("RIGHT", TL.line, x, 0)
-              end)
+                if icon.text then roundFormatted(icon.text, remaining) end
+              end
             else
               spell.queued = true
               spell.charges = false
@@ -1433,36 +1434,29 @@ function TL.loadList(specName)
 						local remaining = expires - cTime
             local total = expires
 
-            do -- Creates the ticker
-              local frameWidth = TL:GetWidth()
+            local frameWidth = TL:GetWidth()
+            local x = (frameWidth * remaining) / TOTAL_TIME
+            local edge = UIParent:GetRight() - TL.line:GetRight()
+            if x > edge then x = edge end
+
+            icon:SetPoint("RIGHT", TL.line, x, 0)
+
+            TL.active[icon] = function()
+              local remaining = total - GetTime()
               local x = (frameWidth * remaining) / TOTAL_TIME
-              local edge = UIParent:GetRight() - TL.line:GetRight()
-              if x > edge then x = edge end
 
-              icon:SetPoint("RIGHT", TL.line, x, 0)
+              if edge > x then
+                if 0 >= x then
+                  x = 0
+                  TL.active[icon] = nil
 
-              if icon.ticker then
-                icon.ticker:Cancel()
-                icon.ticker = nil
-              end
-
-              icon.ticker = newTicker(0.001, function(ticker)
-                local remaining = total - GetTime()
-                local x = (frameWidth * remaining) / TOTAL_TIME
-
-                if edge > x then
-                  if 0 >= x then
-                    x = 0
-                    ticker:Cancel()
-                    icon.ticker = nil
-
-                    if icon.line then icon.line:Hide() end
-                    if icon.text then icon.text:Hide() end
-                  end
-
-                  icon:SetPoint("RIGHT", TL.line, x, 0)
+                  if icon.line then icon.line:Hide() end
+                  if icon.text then icon.text:Hide() end
                 end
-              end)
+
+                icon:SetPoint("RIGHT", TL.line, x, 0)
+                if icon.text then roundFormatted(icon.text, remaining) end
+              end
             end
 
             if icon.line then icon.line:Show() end
@@ -1488,36 +1482,34 @@ function TL.loadList(specName)
             local remaining = expires - cTime
             local total = expires
 
-            do -- Creates the ticker
-              local frameWidth = TL:GetWidth()
+            local frameWidth = TL:GetWidth()
+            local x = (frameWidth * remaining) / TOTAL_TIME
+            local edge = UIParent:GetRight() - TL.line:GetRight()
+            if x > edge then x = edge end
+
+            icon:SetPoint("RIGHT", TL.line, x, 0)
+
+            if icon.ticker then
+              icon.ticker:Cancel()
+              icon.ticker = nil
+            end
+
+            TL.active[icon] = function()
+              local remaining = total - GetTime()
               local x = (frameWidth * remaining) / TOTAL_TIME
-              local edge = UIParent:GetRight() - TL.line:GetRight()
-              if x > edge then x = edge end
 
-              icon:SetPoint("RIGHT", TL.line, x, 0)
+              if edge > x then
+                if 0 >= x then
+                  x = 0
+                  TL.active[icon] = nil
 
-              if icon.ticker then
-                icon.ticker:Cancel()
-                icon.ticker = nil
-              end
-
-              icon.ticker = newTicker(0.001, function(ticker)
-                local remaining = total - GetTime()
-                local x = (frameWidth * remaining) / TOTAL_TIME
-
-                if edge > x then
-                  if 0 >= x then
-                    x = 0
-                    ticker:Cancel()
-                    icon.ticker = nil
-
-                    if icon.line then icon.line:Hide() end
-                    if icon.text then icon.text:Hide() end
-                  end
-
-                  icon:SetPoint("RIGHT", TL.line, x, 0)
+                  if icon.line then icon.line:Hide() end
+                  if icon.text then icon.text:Hide() end
                 end
-              end)
+
+                icon:SetPoint("RIGHT", TL.line, x, 0)
+                if icon.text then roundFormatted(icon.text, remaining) end
+              end
             end
 
             if icon.line then icon.line:Show() end
@@ -1674,13 +1666,8 @@ function TL.loadList(specName)
                 end
               end)
 
-							if icon.line then
-								icon.line:Show()
-							end
-
-							if icon.text then
-								icon.text:Show()
-							end
+							if icon.line then icon.line:Show() end
+							if icon.text then icon.text:Show() end
 						end
 					end
 				elseif category == "rune" then
@@ -1712,39 +1699,55 @@ function TL.loadList(specName)
             local frameWidth = TL:GetWidth()
             local edge = UIParent:GetRight() - TL.line:GetRight()
 
-            if rune.ticker then
-              rune.ticker:Cancel()
-              rune.ticker = nil
+            TL.active[rune] = function()
+              local start, duration, runeReady = GetRuneCooldown(runeNum)
+
+              if not runeReady and start > 0 then
+                local remaining = (start + duration) - GetTime()
+                if remaining > duration then remaining = duration end
+                if remaining < 0 then remaining = 0 end
+                local x = (frameWidth * remaining) / TOTAL_TIME
+
+                if rune.offset then x = x + ICON_HEIGHT end
+                if x > edge then x = edge end -- Icon is off screen, adjust it
+
+                rune:SetPoint("RIGHT", TL.line, x, 0)
+                if rune.text then roundFormatted(rune.text, remaining) end
+              else
+                TL.active[rune] = nil
+                rune.offset = nil
+
+                if rune.line then rune.line:Hide() end
+                if rune.text then rune.text:Hide() end
+              end
             end
 
-            if not rune.ticker then
-              rune.ticker = newTicker(0.001, function(ticker)
-                local start, duration, runeReady = GetRuneCooldown(runeNum)
-
-                if not runeReady and start > 0 then
-                  local remaining = (start + duration) - GetTime()
-                  if remaining > duration then remaining = duration end
-                  if remaining < 0 then remaining = 0 end
-
-                  rune.remaining = remaining
-
-                  local x = (frameWidth * remaining) / TOTAL_TIME
-
-                  if rune.offset then x = x + ICON_HEIGHT end
-                  if x > edge then x = edge end -- Icon is off screen, adjust it
-
-                  rune:SetPoint("RIGHT", TL.line, x, 0)
-                else
-                  ticker:Cancel()
-                  rune.ticker = nil
-                  rune.remaining = nil
-                  rune.offset = nil
-
-                  if rune.line then rune.line:Hide() end
-                  if rune.text then rune.text:Hide() end
-                end
-              end)
-            end
+              -- rune.ticker = newTicker(0.001, function(ticker)
+              --   local start, duration, runeReady = GetRuneCooldown(runeNum)
+              --
+              --   if not runeReady and start > 0 then
+              --     local remaining = (start + duration) - GetTime()
+              --     if remaining > duration then remaining = duration end
+              --     if remaining < 0 then remaining = 0 end
+              --
+              --     rune.remaining = remaining
+              --
+              --     local x = (frameWidth * remaining) / TOTAL_TIME
+              --
+              --     if rune.offset then x = x + ICON_HEIGHT end
+              --     if x > edge then x = edge end -- Icon is off screen, adjust it
+              --
+              --     rune:SetPoint("RIGHT", TL.line, x, 0)
+              --   else
+              --     ticker:Cancel()
+              --     rune.ticker = nil
+              --     rune.remaining = nil
+              --     rune.offset = nil
+              --
+              --     if rune.line then rune.line:Hide() end
+              --     if rune.text then rune.text:Hide() end
+              --   end
+              -- end)
           end
 				end
 			end
@@ -1753,12 +1756,13 @@ function TL.loadList(specName)
 end
 
 function TL.startCombat()
-	TL.active = true
+	TL.inCombat = true
 	TL.combatStart = GetTime()
+  TL.combatStop = nil
 end
 
 function TL.stopCombat()
-	TL.active = false
+	TL.inCombat = false
 	TL.combatStop = GetTime()
 end
 
@@ -4429,86 +4433,4 @@ function SlashCmdList.Timeline(msg, editbox)
 		TL:ClearAllPoints()
 		TL:SetPoint(p1, p2, p3, p4, p5 + tonumber(offSet))
 	end
-end
-
-local function COOLDOWN_UPDATE_BACKUP()
-  local icon = spell.icon[1]
-  local offset = 0
-
-  local charges, chargeMax, start, duration = GetSpellCharges(spellID)
-
-  if not charges then
-    start, duration = GetSpellCooldown(spellID)
-  else
-    if (chargeMax - 1) == charges then -- Missing one charge
-      icon = spell.icon[1]
-    else
-      offset = ICON_HEIGHT
-      icon = spell.icon[2]
-    end
-  end
-
-  local remaining = (start + duration) - GetTime()
-
-  local frameWidth = TL:GetWidth()
-  local x = (frameWidth * duration) / TOTAL_TIME
-  local edge = UIParent:GetRight() - TL.line:GetRight()
-  if x > edge then x = edge end
-
-  icon:SetPoint("RIGHT", TL.line, x + offset, 0)
-
-  if icon.active then -- If the current icon is active, switch to the other one
-    if icon == spell.icon[1] then
-      icon = spell.icon[2]
-    elseif icon == spell.icon[2] then
-      icon = spell.icon[1]
-    end
-  end
-
-  if not spell.ticker then
-    spell.ticker = newTicker(0.001, function(ticker)
-      local remaining = (start + duration) - GetTime()
-      local x = ((frameWidth * remaining) / TOTAL_TIME)
-      icon.remaining = remaining
-      icon.active = true
-
-      if remaining <= 0 then
-        charges, chargeMax, start, duration = GetSpellCharges(spellID)
-
-        if chargeMax > charges then
-          if icon == spell.icon[1] then
-            icon = spell.icon[2]
-            offset = ICON_HEIGHT
-          elseif icon == spell.icon[2] then
-            icon = spell.icon[1]
-          end
-
-          if (chargeMax - 1) == charges then -- Missing one charge
-            offset = 0
-          else
-            offset = ICON_HEIGHT
-          end
-
-          remaining = (start + duration) - GetTime()
-          x = ((frameWidth * remaining) / TOTAL_TIME)
-
-          debug("Extending ticker and switching icon")
-        else
-          debug("Stopping ticker")
-
-          if icon.line then icon.line:Hide() end
-          if icon.text then icon.text:Hide() end
-
-          ticker:Cancel()
-          spell.ticker = nil
-          icon.remaining = nil
-          icon.active = false
-        end
-      end
-
-      if x > edge then x = edge end -- Icon is off screen, adjust it
-
-      icon:SetPoint("RIGHT", TL.line, x + offset, 0)
-    end)
-  end
 end
