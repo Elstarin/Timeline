@@ -76,6 +76,105 @@ do -- Debug mode stuff
 end
 local debug = TL.debug
 --------------------------------------------------------------------------------
+-- Documentation (How to add new icons)
+--[[----------------------------------------------------------------------------
+What follows is a list of every possible category and every key that can be
+used with that category. Many of the key are optional, and I will use an
+asterisk to specify when a key is necessary. If you copy these templates,
+make sure you delete the asterisks, as they will cause lua errors if left in.
+As mentioned above with the ID and name examples, you need one of them, but
+having both is optional. I'll mark both with asterisks anyway, as it doesn't
+hurt anything to include them.
+
+-- COOLDOWN --------------------------------------------------------------------
+list[0] = {
+  category = "cooldown",*
+  ID = 20473,*
+  name = "Holy Shock",*
+  line = true,
+  lineHeight = 100,
+  lineAnchor = "BOTTOM",
+  text = true,
+}
+-- RUNE ------------------------------------------------------------------------
+list[0] = {
+  category = "rune",*
+  ID = 1,*
+  runeNums = {1, 2},*
+  name = "Blood",*
+  line = true,
+  lineHeight = 100,
+  lineAnchor = "BOTTOM",
+  text = true,
+}
+-- Buff ------------------------------------------------------------------------
+list[0] = {
+  category = "buff",*
+  ID = 86273,*
+  name = "Illuminated Healing",*
+  text = true,
+}
+-- Debuff ----------------------------------------------------------------------
+list[0] = {
+  category = "debuff",*
+  ID = 86273,*
+  name = "Illuminated Healing",*
+  text = true,
+}
+-- GCD -------------------------------------------------------------------------
+-- NOTE: This does not create a visible icon, it only creates a vertical line.
+
+list[0] = {
+  category = "gcd",*
+  line = true,*
+  lineHeight = 100,
+  lineAnchor = "BOTTOM",
+  lineColor = {0.5, 1.0, 0.5, 1},
+}
+-- Castbar ---------------------------------------------------------------------
+-- NOTE: Just like the GCD, this does not create a visible icon, only a line
+
+list[-4] = {
+  category = "castbar",*
+  line = true,*
+  lineHeight = 100,
+  lineAnchor = "BOTTOM",
+  createBar = true,
+  lineColor = {0.5, 1.0, 0.5, 1},
+}
+-- BigWigs ---------------------------------------------------------------------
+-- NOTE: This creates lots of icons running on the same list index (same line)
+
+list[0] = {
+  category = "bigwigs",*
+  name = "bigwigs",
+  line = true,
+  lineHeight = 100,
+  lineAnchor = "BOTTOM",
+  createBar = true,
+  lineColor = {0.5, 1.0, 0.5, 1},
+  text = true,
+}
+-- Activity -----------------------------------------------------------------------
+-- NOTE: Currently broken, do not use!
+
+list[0] = {
+  category = "activity",*
+  marks = {2, 3},
+}
+-- Inactivity -----------------------------------------------------------------------
+list[0] = {
+  category = "inactivity",*
+  marks = {2, 3},
+}
+-- Graph -----------------------------------------------------------------------
+-- NOTE: Currently not finished, do not use!
+
+list[0] = {
+  category = "graph",*
+  power = "mana",*
+}
+]]------------------------------------------------------------------------------
 -- Settings
 --------------------------------------------------------------------------------
 local WIDTH = 800 -- Default 300
@@ -1175,12 +1274,14 @@ TL:SetScript("OnEvent", function(self, event, ...)
     end
     
     if TL.runes then -- Player is a death knight
+      print("Trying to set rune textures:")
       for i = 1, 6 do
         local rune = TL.runes[i]
         
         if rune and rune.texture then
           rune.texture:SetTexture(TL.runes.textureList[rune.defaultType])
           rune.texture:SetAllPoints()
+          print(i, TL.runes.textureList[rune.defaultType], rune.texture:GetTexture())
         end
       end
     end
@@ -5222,3 +5323,262 @@ function SlashCmdList.Timeline(msg, editbox)
 		TL:SetPoint(p1, p2, p3, p4, p5 + tonumber(offSet))
 	end
 end
+
+--------------------------------------------------------------------------------
+-- Full explanation
+--[[----------------------------------------------------------------------------
+First of all, everything that should be edited happens in the setting sections, so
+if you see the header for "Main frame and local tables", that's too far.
+
+In this explanation, I'll be surrounding everything that refers to actual code
+in the addon in single quotes, like 'local code = 37', to distinguish it from the
+rest of this explanation text that is not code.
+
+To add a new icon, first select the class section. For example, if you wanted to
+add an icon for paladin, you're interested in the code starting with
+'elseif CLASS == PALADIN then' and ending with 'elseif CLASS == PRIEST then'.
+
+Between those lines, there is a function named for that class, like this:
+'local function paladin(specName)'. This line is what starts a function, but
+the code also needs to be told where the function stops. If you scroll down,
+right before going onto the priest section, there will be a line that says:
+'return list' then right below it a line that says 'end'. The 'end', as you
+might expect, signifies the point where the function stops. Every new icon for
+the class belongs INSIDE this function, between where the function is defined
+and named and where it is ended. This particular function is a local function
+that named 'paladin', and I'll be calling it "the paladin function".
+
+Scroll back up to where the paladin function begins, where it says
+'local function paladin(specName)', and a couple lines below that you'll see
+the code: 'if specName == "Retribution" then', and if you go down beyond
+that you'll find 'elseif specName == "Holy" then', and even farther down you'll
+find 'elseif specName == "Protection" then', and finally, below that there will
+be another 'end' statement.
+
+Note that this section I just explained is just three simple
+'if value == true then' checks. This function gets called when you log into
+the game on a Paladin character, and when that happens the function passes
+what's called an argument. This argument is called 'specName'. 'specName' is
+just a simple variable value, and it contains the text for your currently
+selected specialization.
+
+So, then, still within the paladin function, the code checks "Is this specName
+variable holding the text 'Retribution'? If it isn't, then is it holding the
+text 'Holy'?, if still no, then is it 'Protection'?" Note that it will only
+keep going to the later checks if it fails to pass. For example, if your
+current spec is Holy, then it will try to match Ret, fail, check Holy,
+and pass, and it will not go on to Protection.
+
+Now, once it has figured out what specialization you currently have, then it
+will run all the code that goes within that block of code. For example,
+again let's say your spec is currently Holy. It will fail to match Retribution,
+and it will NOT run any of the code between the lines
+'if specName == "Retribution" then' and the line 'if specName == "Holy" then'.
+That code, what's between the if/elseif checks only gets run when the check is
+passed.
+
+Between where it checks if you are Holy and where it checks if you are Prot
+is where we define the new icons for that specific spec. In each of these
+sections, there will be code that looks like this:
+
+' list[-4] = {
+    category = "castbar",
+    line = true,
+    lineColor = {0.5, 1.0, 0.5, 1},
+    createBar = true,
+  }'
+  
+This is creating an entry in the table that is called 'list'. You can see where
+the table is created if you scroll back up to the top of the function, it'll
+say 'local list = {}'. That's creating a local variable named list, and putting
+a freshly created table in it. '{}' means "Create a new table" to the code.
+
+Like with all variables, the name of 'list' is something that's pretty
+arbitrary that I selected. I could name it 'THIS_IS_A_TABLE' or 't'.
+It doesn't matter, it would work exactly the same.
+
+Tables are the main way data is stored. For an example of how this works, I'll
+show how to put some variables to a table. You do that like this:
+
+'list[1] = 37'
+'list[2] = 10'
+
+The value right after 'list' that is in the brackets '[]' is what's called the
+key to the value. The value is what's after the equals sign. So, as you'd
+expect from a key, you use the key to access the value.
+
+The function 'print()' is just a diagnostics tool that outputs anything that
+is passed to it as an argument, so that you can see what it contains.
+For example, look at this code:
+
+'local value = 25'
+'print(value)'
+
+As you would expect, this would cause the number 25 to show up in chat,
+which tells me what is contained in the variable named 'value'. Going back
+to the table example, if I want to check what is the value unlocked with
+the key of '1', I do this: 'print(list[1])' and that will make a 37 show up
+in chat. However, if I did this: 'print(list[3])', it would print a 'nil',
+because I didn't assign any value to the key of '3'. I can also do things
+like this: 'print(list[1] + list[2])' which would print 47. Tables are actually
+pretty simple, when you get down to it.
+
+Now, the key for a table doesn't have to be a number. I could do the exact same
+things if I set up the table entries with different keys, like this:
+
+'list["THIS IS A KEY"] = 37'
+'list[176] = 10'
+
+If I then did 'print(list["THIS IS A KEY"] + list[176])' it would still be doing
+the exact same thing as before, which is just 37 + 10, making a 47 in chat.
+The key just gives you whatever is stored in its value.
+
+Its value doesn't have to be a number either. I could do this:
+'list[1] = "Some value text"', and as you'd expect, 'print(list[1])' would
+put the text "Some value text" into chat. Or, it could be another table.
+This is called a nested table, because it's a table within a table. That may
+sound confusing, but think of it in exactly the same terms. It's pretty
+simple to understand that I could write this:
+
+'local myTable = {}'
+
+and now the variable called 'myTable' holds a table. Doing this:
+
+'list[1] = {}'
+
+is exactly the same sort of thing. Now, contained within the list table is
+another table, and to access that table, I use the key of '1'. Now, this finally
+brings me back to this code:
+
+' list[-4] = {
+    category = "castbar",
+    line = true,
+    lineColor = {0.5, 1.0, 0.5, 1},
+    createBar = true,
+  }'
+  
+I'm sure it looks confusing, but break it down and see what each of the
+different parts are doing. First of all, we're assigning a value to
+'list[-4]', so '-4' is the key to accessing that value. The value we're putting
+there is a table, just the same as if I did this:
+
+'list[-4] = {}'
+
+You can see the closing } at the end of code. The reason the example from the
+addon looks different is because I'm putting keys and values in the newly
+created table. So, the first bit inside the new table is:
+
+'category = "castbar",'
+
+That is just assigning a new value, '"castbar"', to the key, 'category'. It
+could also be written like this:
+
+'list[-4] = {}'
+'list[-4]["category"] = "castbar"'
+
+It's exactly the same. It's just creating a table with a key of '-4' and
+accessing the new table and assigning the key of 'category' to the value of
+'"castbar"'. If the above example makes sense, then you understand the real
+code from the addon that I'm explaining. They are different ways of writing
+the same thing.
+
+Continuing on, I then assign the value of 'true' to the key of 'line', then
+comes another one that may look a bit confusing, but don't worry, it's more
+of exactly the same thing, just written slightly differently.
+
+'lineColor = {0.5, 1.0, 0.5, 1}'
+
+is creating another table, within the 'list[-4]' table, and assigning it the
+key of 'lineColor'. I'm putting 4 values into this brand new table. Now, you
+might notice that there are no keys. However, once again, this is a different
+way of writing the same thing. All three of these chunks of code are exactly
+the same:
+
+'lineColor = {0.5, 1.0, 0.5, 1}'
+
+'lineColor = {
+  [1] = 0.5,
+  [2] = 1.0,
+  [3] = 0.5,
+  [4] = 1,
+}'
+
+'lineColor = {}'
+'lineColor[1] = 0.5'
+'lineColor[2] = 1.0'
+'lineColor[3] = 0.5'
+'lineColor[4] = 1'
+
+The last example is probably the easiest to understand, but they are the same.
+Since in the first one I'm not supplying any keys, the Lua interpretor is
+automatically adding them, starting with '1', then '2', etc. I don't have to
+actually specify the keys, like in the second and third examples.
+
+]]------------------------------------------------------------------------------
+-- Creating a new icon example
+--[[----------------------------------------------------------------------------
+Here's how to actually create your own new icon.
+
+First, you must choose a key for the new entry in the 'list' table. This should
+be a number, between -100 and 100. For this example, I'll use the number 5. The
+number you select determines where it will position the icon. 'list[0]' would be
+right in the middle, 'list[-5]' would be closer to the top of the screen,
+and 'list[5]' is, of course, lower down. I create the new entry like this:
+
+'list[5] = {
+
+}'
+
+Now it's time to fill this newly created table with values that are going to be
+read by the addon later and used to tell it exactly how an icon should be setup.
+
+The order doesn't matter, but I'll start with the 'category' value. I'll make
+this new icon be a cooldown, so I want the category to be cooldown, like this:
+
+'list[5] = {
+  category = "cooldown",
+}'
+
+Now when the addon runs this list entry, it will check what the value of the
+category is, and that will tell it what type of icon it should create. Every
+new icon must have a category assigned.
+
+Okay, now that I've told it that it should be a cooldown, I need to tell it
+which cooldown it's suppose to be tracking. This is done by either adding a
+'name' entry or an 'ID' entry, or both!
+
+'list[5] = {
+  category = "cooldown",
+  ID = 20473,
+  name = "Holy Shock",
+}'
+
+Now it has both the ID and the name of the spell I want to track. It isn't
+necessary to have both, it will try to find the ID if you only give it a name
+and it will find the name if you only give it an ID. When in doubt, find the
+exact spellID, because that guarantees it'll track the correct thing.
+
+This is all we need to create a new cooldown icon for Holy Shock. However,
+there are more things that can be added, if we want to.
+
+If you want to give it a vertical line attatched to the right side of the icon,
+add this: 'line = true,' in exactly the same manner as the other values. This
+tells it a line should be created to go with this icon. By default, it will
+attatch this line from the top of the screen to the bottom. If you want to
+override this and give it a specific height, add the key 'lineHeight', and
+give it a number value, like this: 'lineHeight = 100'. Now it would be centered
+on the icon and be 100 pixels tall.
+
+If you don't want it to be centered on the icon, you could use the key
+'lineAnchor' with the values of either '"TOP"' or '"BOTTOM"'. All of these
+together looks like this:
+
+'list[5] = {
+  category = "cooldown",
+  ID = 20473,
+  name = "Holy Shock",
+  line = true,
+  lineHeight = 100,
+  lineAnchor = "BOTTOM",
+}'
+]]
